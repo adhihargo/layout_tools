@@ -42,6 +42,10 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
     bl_label = 'Create Layout'
     bl_options = {'REGISTER'}
 
+    @classmethod
+    def poll(self, context):
+        return context.blend_data.is_saved
+
     def write_listing(self, marker_infos, lpath):
         lfile = open(lpath, 'w')
         for mi in marker_infos:
