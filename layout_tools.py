@@ -45,6 +45,16 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
     basepath = None
     render_selected = False
 
+    scene_frame_start = None
+    scene_frame_end = None
+
+    render_filepath = None
+    image_file_format = None
+
+    ffmpeg_format = None
+    ffmpeg_audio_codec = None
+    ffmpeg_audio_bitrate = None
+
     @classmethod
     def poll(self, context):
         # The operator needs the scene to be already saved in a file.
@@ -79,30 +89,62 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         return marker_infos
 
-    def save_marker_delimited_file(self, context, layoutdir, mi):
-        markerpath = bpy.path.ensure_ext(
-            filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
-        bpy.ops.wm.save_as_mainfile(filepath=markerpath, copy=True,
-                                    relative_remap=True)
-
-    def modify_scene_settings(self, context, mi):
+    def marker_scene_settings(self, context, mi):
         scene = context.scene
         render = scene.render
+        image = render.image_settings
         ffmpeg = render.ffmpeg
 
-        duration = mi['end'] - mi['start']
-        scene.frame_end = scene.frame_start + duration
+        scene.frame_start =  mi['start']
+        scene.frame_end = mi['end']
+
         render.filepath = os.path.join(self.basepath, 'sounds',
                                        mi['name']+'.wav')
         render.image_settings.file_format = 'H264'
+
         ffmpeg.format = 'WAV'
         ffmpeg.audio_codec = 'PCM'
         ffmpeg.audio_bitrate = 192
 
-    def execute(self, context):
+    def save_scene_settings(self, context):
         scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+
+        self.scene_frame_start =  scene.frame_start
+        self.scene_frame_end = scene.frame_end
+
+        self.render_filepath = render.filepath
+        self.image_file_format = image.file_format
+
+        self.ffmpeg_format = ffmpeg.format
+        self.ffmpeg_audio_codec = ffmpeg.audio_codec
+        self.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
+
+    def restore_scene_settings(self, context):
+        scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+
+        scene.frame_start = self.scene_frame_start
+        scene.frame_end = self.scene_frame_end
+        
+        render.filepath = self.render_filepath
+        image.file_format = self.image_file_format
+
+        ffmpeg.format = self.ffmpeg_format
+        ffmpeg.audio_codec = self.ffmpeg_audio_codec
+        ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
+
+    def execute(self, context):
         blendpath = bpy.path.abspath(context.blend_data.filepath)
 
+        marker_infos = self.create_marker_infos(context)
+        if not marker_infos:
+            return {'CANCELLED'}
+        
         blenddir, blendfile = os.path.split(blendpath)
         blenddir0, blenddir1 = os.path.split(blenddir)
         blendfile_base = os.path.splitext(blendfile)[0]
@@ -112,52 +154,34 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
             if not os.path.exists(layoutdir):
                 os.makedirs(layoutdir)
 
-        marker_infos = self.create_marker_infos(context)
-        if not marker_infos:
-            return {'CANCELLED'}
-        
-        scene.timeline_markers.clear()
         self.write_listing(marker_infos,
                            os.path.join(blenddir, blendfile_base + '.txt'))
 
-        scene.sequence_editor.show_overlay = True
-        scene.frame_current = scene.frame_start
-        sequences = scene.sequence_editor.sequences
-        prev_offset = 0
+        self.save_scene_settings(context)
         for mi in marker_infos:
-            offset = mi['start'] - (scene.frame_start + prev_offset)
-
-            # Most effect strip's frame range depends on at least one
-            # other strip (except Color, MultiCam and Adjustment), so
-            # musn't be manipulated directly.
-            sequences_sorted = sorted([seq for seq in sequences
-                                       if not (isinstance(seq, bpy.types.EffectSequence)
-                                               and seq.type not in ['COLOR',
-                                                                    'MULTICAM',
-                                                                    'ADJUSTMENT'])],
-                                      key=lambda s: s.frame_final_start)
-
-            # delete_seq_pre = [
-            #     seq for seq in sequences_sorted
-            #     if seq.frame_final_end - offset < scene.frame_start]
-            # delete_seq_post = [
-            #     seq for seq in sequences_sorted
-            #     if seq.frame_start - offset >= scene.frame_end]
-
-            for seq in sequences_sorted:
-                seq.frame_start -= offset
-                seq.select = False
-            prev_offset += offset
-
-            # bpy.ops.sequencer.delete({'selected_sequences': delete_seq_post,
-            #                           'window': context.window,
-            #                           'scene': context.scene},
-            #                          'INVOKE_DEFAULT', True)
-            self.modify_scene_settings(context, mi)
-            if self.render_selected and mi['select']:
+            self.marker_scene_settings(context, mi)
+            if not (self.render_selected and not mi['select']):
                 bpy.ops.render.render(animation=True)
-            self.save_marker_delimited_file(context, layoutdir, mi)
-            # bpy.ops.ed.undo('INVOKE_DEFAULT')
+        self.restore_scene_settings(context)
+
+        scene = context.scene
+        scene.timeline_markers.clear()
+        sequences = scene.sequence_editor.sequences
+        for seq in sequences:
+            sequences.remove(seq)
+        for mi in marker_infos:
+            duration = mi['end'] - mi['start']
+            scene.frame_end = scene.frame_start + duration
+            seq = sequences.new_sound(mi['name'],
+                                      os.path.join(self.basepath, 'sounds',
+                                                   mi['name']+'.wav'),
+                                      1,
+                                      scene.frame_start)
+            markerpath = bpy.path.ensure_ext(
+                filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
+            bpy.ops.wm.save_as_mainfile(filepath=markerpath, copy=True,
+                                        relative_remap=True)
+            sequences.remove(seq)
 
         bpy.ops.wm.open_mainfile(filepath=blendpath)
 
