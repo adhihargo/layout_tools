@@ -172,11 +172,11 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         for mi in marker_infos:
             duration = mi['end'] - mi['start']
             scene.frame_end = scene.frame_start + duration
-            seq = sequences.new_sound(mi['name'],
-                                      os.path.join(self.basepath, 'sounds',
-                                                   mi['name']+'.wav'),
-                                      1,
-                                      scene.frame_start)
+            soundpath = os.path.join(self.basepath, 'sounds',
+                                     mi['name']+'.wav')
+            if os.path.exists(soundpath):
+                seq = sequences.new_sound(mi['name'], soundpath,
+                                      1, scene.frame_start)
             markerpath = bpy.path.ensure_ext(
                 filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
             bpy.ops.wm.save_as_mainfile(filepath=markerpath, copy=True,
