@@ -171,16 +171,18 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
                    and marker.frame < scene.frame_end]
         markers.sort(key=lambda m: m.frame)
 
+        self.marker_infos.clear()
         for m, frame_end in zip(
             markers, [m.frame for m in markers[1:]]+[scene.frame_end]):
             self.marker_infos.append({'name':m.name,
                                       'select':m.select,
                                       'start':m.frame,
                                       'end':frame_end})
-        self.render_marker_infos.extend([mi for mi in self.marker_infos
-                                         if mi['select'] == True]
-                                        if self.render_selected
-                                        else self.marker_infos)
+
+        self.render_marker_infos.clear()
+        self.render_marker_infos.extend(
+            [mi for mi in self.marker_infos if mi['select'] == True]
+            if self.render_selected else self.marker_infos)
         props.render_count = len(self.render_marker_infos)
         
     def adjust_duration_to_effects(self, context):
