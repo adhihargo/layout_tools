@@ -37,6 +37,7 @@ bl_info = {
 class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
     render_lock = threading.Lock()
     render_count = 0
+    render_finished = True
 
 class SEQUENCER_OT_RenderSound(bpy.types.Operator):
     bl_idname = 'render.oha_render_sound'
@@ -94,12 +95,16 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
             return {'PASS_THROUGH'}
 
         self.restore_scene_settings(context)
+        props.render_finished = True
         props.render_lock.release()
 
         return {'FINISHED'}
 
     def cancel(self, context):
+        props = context.scene.oha_layout_tools
         self.restore_scene_settings(context)
+        props.render_finished = True
+        props.render_lock.release()
         context.window_manager.event_timer_remove(self._timer)
 
         return {'CANCELLED'}
@@ -121,6 +126,7 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
         wm.modal_handler_add(self)
         self._timer = wm.event_timer_add(1.0, context.window)
         if props.render_lock.acquire(blocking=True):
+            props.render_finished = False
             self.save_scene_settings(context)
             self.init_thread()
             self.render_thread.start()
@@ -229,6 +235,9 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         if not props.render_lock.acquire(blocking=False):
             # context.window_manager.progress_end()
+            return {'PASS_THROUGH'}
+        if not props.render_finished:
+            props.render_lock.release()
             return {'PASS_THROUGH'}
         props.render_lock.release()
 
