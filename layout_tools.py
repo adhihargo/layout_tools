@@ -44,6 +44,7 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
     bl_options = {'REGISTER'}
 
     render_thread = None
+    _timer = None
 
     scene_frame_start = None
     scene_frame_end = None
@@ -87,17 +88,25 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
         ffmpeg.audio_codec = self.ffmpeg_audio_codec
         ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
 
-    def modal(self, context, event):
+    def check_render_thread(self, context):
         props = context.scene.oha_layout_tools
         if self.render_thread and self.render_thread.is_alive():
             return {'RUNNING_MODAL'}
-        else:
-            self.restore_scene_settings(context)
-            props.render_lock.release()
-            return {'FINISHED'}
+
+        self.restore_scene_settings(context)
+        props.render_lock.release()
+
+        return {'FINISHED'}
+
+    def modal(self, context, event):
+        if event.type == 'TIMER':
+            return self.check_render_thread(context)
+
+        return {'PASS_THROUGH'}
         
     def cancel(self, context):
         self.restore_scene_settings(context)
+        context.window_manager.event_timer_remove(self._timer)
 
         return {'CANCELLED'}
 
@@ -106,9 +115,11 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
             target=bpy.ops.render.render, kwargs={'animation':True})
 
     def execute(self, context):
+        wm = context.window_manager
         props = context.scene.oha_layout_tools
 
-        context.window_manager.modal_handler_add(self)
+        wm.modal_handler_add(self)
+        self._timer = wm.event_timer_add(1.0, context.window)
         if props.render_lock.acquire(blocking=True):
             self.save_scene_settings(context)
             self.init_thread()
@@ -130,6 +141,8 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
     render_selected = False
     marker_infos = []
     render_marker_infos = []
+
+    _timer = None
 
     @classmethod
     def poll(self, context):
@@ -206,7 +219,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         ffmpeg.audio_codec = 'PCM'
         ffmpeg.audio_bitrate = 192
 
-    def modal(self, context, event):
+    def check_render_thread(self, context):
         scene = context.scene
         props = scene.oha_layout_tools
         scene.timeline_markers.clear()
@@ -251,7 +264,19 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         return {'FINISHED'}
 
+    def cancel(self, context):
+        context.window_manager.event_timer_remove(self._timer)
+        
+        return {'CANCELLED'}
+
+    def modal(self, context, event):
+        if event.type == 'TIMER':
+            return self.check_render_thread(context)
+
+        return {'PASS_THROUGH'}
+
     def execute(self, context):
+        wm = context.window_manager
         scene = context.scene
         props = scene.oha_layout_tools
 
@@ -259,7 +284,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         self.init_marker_infos(context)
         if not self.marker_infos:
-            return {'CANCELLED'}
+            return self.cancel(context)
         self.adjust_duration_to_effects(context)
         
         blenddir, blendfile = os.path.split(self.blendpath)
@@ -273,7 +298,8 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         self.write_listing(os.path.join(blenddir, blendfile_base + '.txt'))
 
-        context.window_manager.modal_handler_add(self)
+        wm.modal_handler_add(self)
+        self._timer = wm.event_timer_add(1.0, context.window)
         # context.window_manager.progress_begin(0, props.render_count)
 
         return {'RUNNING_MODAL'}
