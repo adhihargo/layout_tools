@@ -242,7 +242,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         props.render_lock.release()
 
         if self.render_marker_infos:
-            rmi = self.render_marker_infos.pop()
+            rmi = self.render_marker_infos.pop(0)
             # context.window_manager.progress_update(
             #     props.render_count - len(self.render_marker_infos))
             self.marker_scene_settings(context, rmi)
