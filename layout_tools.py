@@ -91,12 +91,18 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
     def check_render_thread(self, context):
         props = context.scene.oha_layout_tools
         if self.render_thread and self.render_thread.is_alive():
-            return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
 
         self.restore_scene_settings(context)
         props.render_lock.release()
 
         return {'FINISHED'}
+
+    def cancel(self, context):
+        self.restore_scene_settings(context)
+        context.window_manager.event_timer_remove(self._timer)
+
+        return {'CANCELLED'}
 
     def modal(self, context, event):
         if event.type == 'TIMER':
@@ -104,12 +110,6 @@ class SEQUENCER_OT_RenderSound(bpy.types.Operator):
 
         return {'PASS_THROUGH'}
         
-    def cancel(self, context):
-        self.restore_scene_settings(context)
-        context.window_manager.event_timer_remove(self._timer)
-
-        return {'CANCELLED'}
-
     def init_thread(self):
         self.render_thread = threading.Thread(
             target=bpy.ops.render.render, kwargs={'animation':True})
@@ -229,7 +229,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         if not props.render_lock.acquire(blocking=False):
             # context.window_manager.progress_end()
-            return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
         props.render_lock.release()
 
         if self.render_marker_infos:
@@ -241,10 +241,10 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
             bpy.ops.render.oha_render_sound()
 
-            return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
 
-        for seq in sequences:
-            sequences.remove(seq)
+        bpy.ops.sequencer.select_all(action='SELECT')
+        bpy.ops.sequencer.delete()
         for mi in self.marker_infos:
             duration = mi['end'] - mi['start']
             scene.frame_end = scene.frame_start + duration
