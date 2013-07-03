@@ -35,106 +35,7 @@ bl_info = {
     "category": "Sequencer"}
 
 class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
-    render_lock = threading.Lock()
     render_count = 0
-    render_finished = True
-
-class SEQUENCER_OT_RenderSound(bpy.types.Operator):
-    bl_idname = 'render.oha_render_sound'
-    bl_label = 'Render Sound'
-    bl_options = {'REGISTER'}
-
-    render_thread = None
-    _timer = None
-
-    scene_frame_start = None
-    scene_frame_end = None
-
-    render_filepath = None
-    image_file_format = None
-
-    ffmpeg_format = None
-    ffmpeg_audio_codec = None
-    ffmpeg_audio_bitrate = None
-
-    def save_scene_settings(self, context):
-        scene = context.scene
-        render = scene.render
-        image = render.image_settings
-        ffmpeg = render.ffmpeg
-
-        self.scene_frame_start =  scene.frame_start
-        self.scene_frame_end = scene.frame_end
-
-        self.render_filepath = render.filepath
-        self.image_file_format = image.file_format
-
-        self.ffmpeg_format = ffmpeg.format
-        self.ffmpeg_audio_codec = ffmpeg.audio_codec
-        self.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
-
-    def restore_scene_settings(self, context):
-        scene = context.scene
-        render = scene.render
-        image = render.image_settings
-        ffmpeg = render.ffmpeg
-
-        scene.frame_start = self.scene_frame_start
-        scene.frame_end = self.scene_frame_end
-        
-        render.filepath = self.render_filepath
-        image.file_format = self.image_file_format
-
-        ffmpeg.format = self.ffmpeg_format
-        ffmpeg.audio_codec = self.ffmpeg_audio_codec
-        ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
-
-    def check_render_thread(self, context):
-        props = context.scene.oha_layout_tools
-        if self.render_thread and self.render_thread.is_alive():
-            return {'PASS_THROUGH'}
-
-        self.restore_scene_settings(context)
-        props.render_finished = True
-        props.render_lock.release()
-
-        return {'FINISHED'}
-
-    def cancel(self, context):
-        props = context.scene.oha_layout_tools
-        self.restore_scene_settings(context)
-        props.render_finished = True
-        props.render_lock.release()
-        context.window_manager.event_timer_remove(self._timer)
-
-        return {'CANCELLED'}
-
-    def modal(self, context, event):
-        if event.type == 'TIMER':
-            return self.check_render_thread(context)
-
-        return {'PASS_THROUGH'}
-        
-    def init_thread(self):
-        self.render_thread = threading.Thread(
-            target=bpy.ops.render.render, kwargs={'animation':True})
-
-    def execute(self, context):
-        wm = context.window_manager
-        props = context.scene.oha_layout_tools
-
-        wm.modal_handler_add(self)
-        self._timer = wm.event_timer_add(1.0, context.window)
-        if props.render_lock.acquire(blocking=True):
-            props.render_finished = False
-            self.save_scene_settings(context)
-            self.init_thread()
-            self.render_thread.start()
-
-        return {'RUNNING_MODAL'}
-
-    def invoke(self, context, event):
-        return self.execute(context)
 
 class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
     '''Automatically create layout files using marker boundaries.'''
@@ -149,6 +50,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
     render_marker_infos = []
 
     _timer = None
+    _render_thread = None
 
     @classmethod
     def poll(self, context):
@@ -166,7 +68,11 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
                                                mi['end'] - mi['start']))
         lfile.close()
 
-    def init_marker_infos(self, context):
+    def _init_render_thread(self):
+        self._render_thread = threading.Thread(
+            target=bpy.ops.render.render, kwargs={'animation':True})
+
+    def _init_marker_infos(self, context):
         # Store marker informations so the markers themselves can be
         # deleted.
         scene = context.scene
@@ -227,19 +133,16 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         ffmpeg.audio_codec = 'PCM'
         ffmpeg.audio_bitrate = 192
 
-    def check_render_thread(self, context):
+    def _check_render_thread(self, context):
         scene = context.scene
         props = scene.oha_layout_tools
         scene.timeline_markers.clear()
         sequences = scene.sequence_editor.sequences
 
-        if not props.render_lock.acquire(blocking=False):
-            # context.window_manager.progress_end()
+        if self._render_thread.is_alive():
             return {'PASS_THROUGH'}
-        if not props.render_finished:
-            props.render_lock.release()
-            return {'PASS_THROUGH'}
-        props.render_lock.release()
+        else:
+            self._init_render_thread()
 
         if self.render_marker_infos:
             rmi = self.render_marker_infos.pop(0)
@@ -248,7 +151,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
             self.marker_scene_settings(context, rmi)
             context.screen.update_tag()
 
-            bpy.ops.render.oha_render_sound()
+            self._render_thread.start()
 
             return {'PASS_THROUGH'}
 
@@ -282,7 +185,10 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
     def modal(self, context, event):
         if event.type == 'TIMER':
-            return self.check_render_thread(context)
+            return self._check_render_thread(context)
+        elif event.type == 'ESC':
+            self.marker_infos.clear()
+            self.render_marker_infos.clear()
 
         return {'PASS_THROUGH'}
 
@@ -293,7 +199,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         self.blendpath = bpy.path.abspath(context.blend_data.filepath)
 
-        self.init_marker_infos(context)
+        self._init_marker_infos(context)
         if not self.marker_infos:
             return self.cancel(context)
         self.adjust_duration_to_effects(context)
@@ -311,6 +217,7 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         wm.modal_handler_add(self)
         self._timer = wm.event_timer_add(1.0, context.window)
+        self._init_render_thread()
         # context.window_manager.progress_begin(0, props.render_count)
 
         return {'RUNNING_MODAL'}
