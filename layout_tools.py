@@ -49,6 +49,16 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
     marker_infos = []
     render_marker_infos = []
 
+    scene_frame_start = None
+    scene_frame_end = None
+
+    render_filepath = None
+    image_file_format = None
+
+    ffmpeg_format = None
+    ffmpeg_audio_codec = None
+    ffmpeg_audio_bitrate = None
+
     _timer = None
     _render_thread = None
 
@@ -58,6 +68,38 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         # and there's no unrendered shot marker.
         return context.blend_data.is_saved\
             and not self.render_marker_infos
+
+    def save_scene_settings(self, context):
+        scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+
+        self.scene_frame_start =  scene.frame_start
+        self.scene_frame_end = scene.frame_end
+
+        self.render_filepath = render.filepath
+        self.image_file_format = image.file_format
+
+        self.ffmpeg_format = ffmpeg.format
+        self.ffmpeg_audio_codec = ffmpeg.audio_codec
+        self.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
+
+    def restore_scene_settings(self, context):
+        scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+
+        scene.frame_start = self.scene_frame_start
+        scene.frame_end = self.scene_frame_end
+        
+        render.filepath = self.render_filepath
+        image.file_format = self.image_file_format
+
+        ffmpeg.format = self.ffmpeg_format
+        ffmpeg.audio_codec = self.ffmpeg_audio_codec
+        ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
 
     def write_listing(self, lpath):
         # Write the duration of each shots (difference of adjacent
@@ -146,15 +188,16 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
 
         if self.render_marker_infos:
             rmi = self.render_marker_infos.pop(0)
-            # context.window_manager.progress_update(
-            #     props.render_count - len(self.render_marker_infos))
+            context.window_manager.progress_update(
+                props.render_count - len(self.render_marker_infos))
             self.marker_scene_settings(context, rmi)
-            context.screen.update_tag()
+            # context.screen.update_tag()
 
             self._render_thread.start()
 
             return {'PASS_THROUGH'}
 
+        self.restore_scene_settings(context)
         bpy.ops.sequencer.select_all(action='SELECT')
         bpy.ops.sequencer.delete()
         for mi in self.marker_infos:
@@ -214,11 +257,12 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
                 os.makedirs(layoutdir)
 
         self.write_listing(os.path.join(blenddir, blendfile_base + '.txt'))
+        self.save_scene_settings(context)
 
         wm.modal_handler_add(self)
         self._timer = wm.event_timer_add(1.0, context.window)
         self._init_render_thread()
-        # context.window_manager.progress_begin(0, props.render_count)
+        context.window_manager.progress_begin(0, props.render_count)
 
         return {'RUNNING_MODAL'}
 
