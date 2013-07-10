@@ -21,6 +21,7 @@
 import bpy
 import os
 from bpy.app.handlers import persistent
+import threading
 
 bl_info = {
     "name": "OHA Layout Tools",
@@ -34,17 +35,19 @@ bl_info = {
     "tracker_url": "https://github.com/adhihargo/layout_tools/issues",
     "category": "Sequencer"}
 
-RS_INIT = 0
-RS_RUNNING = 1
-RS_FINISHED = 2
-
 class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
-    render_count = 0
-    render_state = RS_INIT
     render_marker_infos = []
-    render_selected = False
     marker_infos = []
-    render_basepath = ''
+
+
+# ============================== operators =============================
+
+class ExtractShotfiles_Base():
+    blendpath = None            # path of .blend file to restore back to
+    render_basepath = None      # base path of layout files
+    render_selected = False
+
+    _timer = None
 
     scene_frame_start = None
     scene_frame_end = None
@@ -56,22 +59,6 @@ class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
     ffmpeg_audio_codec = None
     ffmpeg_audio_bitrate = None
 
-
-# ============================== operators =============================
-
-class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
-    '''Automatically create layout files using marker boundaries.'''
-    bl_idname = 'sequencer.oha_extract_shot_files'
-    bl_label = 'Create Layout'
-    bl_options = {'REGISTER'}
-
-    blendpath = None            # path of .blend file to restore back to
-    basepath = None             # base path of layout files
-    marker_infos = []
-    render_marker_infos = []
-
-    # _timer = None
-
     @classmethod
     def poll(self, context):
         props = context.scene.oha_layout_tools
@@ -81,7 +68,38 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         return context.blend_data.is_saved\
             and not props.render_marker_infos
 
-    def _init_marker_infos(self, context):
+    def write_shot_files(self, context):
+        scene = context.scene
+        props = scene.oha_layout_tools
+        sequences = scene.sequence_editor.sequences
+        scene.timeline_markers.clear()
+    
+        self.restore_scene_settings(context)
+        bpy.ops.sequencer.select_all(action='SELECT')
+        bpy.ops.sequencer.delete()
+        for mi in props.marker_infos:
+            if self.render_selected and not mi['select']:
+                continue
+
+            seq = None
+            duration = mi['end'] - mi['start']
+            scene.frame_end = scene.frame_start + duration
+    
+            soundpath = os.path.join(self.render_basepath, 'sounds',
+                                     mi['name']+'.wav')
+            if os.path.exists(soundpath):
+                seq = sequences.new_sound(mi['name'], soundpath,
+                                          1, scene.frame_start)
+    
+            layoutdir = os.path.join(self.render_basepath, 'layouts')
+            markerpath = bpy.path.ensure_ext(
+                filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
+            bpy.ops.wm.save_as_mainfile(filepath=markerpath, copy=True,
+                                        relative_remap=True)
+            if seq:
+                sequences.remove(seq)
+
+    def init_marker_infos(self, context):
         # Store marker informations so the markers themselves can be
         # deleted.
         scene = context.scene
@@ -103,30 +121,84 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         props.render_marker_infos.clear()
         props.render_marker_infos.extend(
             [mi for mi in props.marker_infos if mi['select'] == True]
-            if props.render_selected else props.marker_infos)
-        props.render_count = len(props.render_marker_infos)
+            if self.render_selected else props.marker_infos)
         
-    def _check_render_progress(self, context):
-        bpy.ops.wm.open_mainfile(filepath=self.blendpath)
+    def render_pre_handler(self, context):
+        props = bpy.context.scene.oha_layout_tools
+    
+        if props.render_marker_infos:
+            rmi = props.render_marker_infos.pop(0)
+            self.marker_scene_settings(context, rmi)
+    
+    def render_complete_handler(self, context):
+        props = context.scene.oha_layout_tools
+    
+        if not props.render_marker_infos:
+            self.write_shot_files(context)
+            props.marker_infos.clear()
+            bpy.ops.wm.open_mainfile(filepath=self.blendpath)
 
-        return {'FINISHED'}
+    def save_scene_settings(self, context):
+        scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+        props = scene.oha_layout_tools
+    
+        self.scene_frame_start =  scene.frame_start
+        self.scene_frame_end = scene.frame_end
+    
+        self.render_filepath = render.filepath
+        self.image_file_format = image.file_format
+    
+        self.ffmpeg_format = ffmpeg.format
+        self.ffmpeg_audio_codec = ffmpeg.audio_codec
+        self.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
+    
+    def restore_scene_settings(self, context):
+        scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+        props = scene.oha_layout_tools
+    
+        scene.frame_start = self.scene_frame_start
+        scene.frame_end = self.scene_frame_end
+        
+        render.filepath = self.render_filepath
+        image.file_format = self.image_file_format
+    
+        ffmpeg.format = self.ffmpeg_format
+        ffmpeg.audio_codec = self.ffmpeg_audio_codec
+        ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
 
-    def modal(self, context, event):
-        if event.type == 'TIMER':
-            return self._check_render_progress(context)
-        elif event.type == 'ESC':
-            if render_complete_handler in bpy.app.handlers.render_complete:
-                bpy.app.handlers.render_complete.remove(render_complete_handler)
+    def marker_scene_settings(self, context, mi):
+        scene = context.scene
+        render = scene.render
+        image = render.image_settings
+        ffmpeg = render.ffmpeg
+        props = scene.oha_layout_tools
+    
+        scene.frame_start =  mi['start']
+        scene.frame_end = mi['end']
+    
+        render.filepath = os.path.join(self.render_basepath, 'sounds',
+                                       mi['name']+'.wav')
+        render.image_settings.file_format = 'H264'
+    
+        ffmpeg.format = 'WAV'
+        ffmpeg.audio_codec = 'PCM'
+        ffmpeg.audio_bitrate = 192
 
-        return {'PASS_THROUGH'}
-
-    def execute(self, context):
+    def invoke(self, context, event):
         scene = context.scene
         props = scene.oha_layout_tools
 
+        self.render_selected = event.shift == True
+
         self.blendpath = bpy.path.abspath(context.blend_data.filepath)
 
-        self._init_marker_infos(context)
+        self.init_marker_infos(context)
         if not props.marker_infos:
             return self.cancel(context)
         adjust_duration_to_effects(context)
@@ -134,28 +206,165 @@ class SEQUENCER_OT_ExtractShotfiles(bpy.types.Operator):
         blenddir, blendfile = os.path.split(self.blendpath)
         blenddir0, blenddir1 = os.path.split(blenddir)
         blendfile_base = os.path.splitext(blendfile)[0]
-        if blenddir1:
-            props.render_basepath = os.path.join(blenddir0, blendfile_base)
-            layoutdir = os.path.join(props.render_basepath, 'layouts')
-            if not os.path.exists(layoutdir):
-                os.makedirs(layoutdir)
+
+        self.render_basepath = os.path.join(blenddir0, blendfile_base)
+        layoutdir = os.path.join(self.render_basepath, 'layouts')
+        if not os.path.exists(layoutdir):
+            os.makedirs(layoutdir)
 
         write_shot_listing(context,
                            os.path.join(blenddir, blendfile_base + '.txt'))
-        save_scene_settings(context)
+        self.save_scene_settings(context)
 
-        bpy.app.handlers.render_pre.append(render_pre_handler)
-        bpy.app.handlers.render_complete.append(render_complete_handler)
+        return self.execute(context)
 
-        bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
+    '''Automatically create layout files using marker boundaries - Threading.'''
+    bl_idname = 'sequencer.oha_extract_shot_files_threading'
+    bl_label = 'Create Layout'
+    bl_options = {'REGISTER'}
+
+    _render_thread = None
+
+    def init_render_thread(self):
+        self._render_thread = threading.Thread(
+            target=bpy.ops.render.render, kwargs={'animation':True})
+
+    def check_render_thread(self, context):
+        wm = context.window_manager
+        scene = context.scene
+        props = scene.oha_layout_tools
+        context.area.tag_redraw()
+
+        if self._render_thread.is_alive():
+            return {'PASS_THROUGH'}
+        else:
+            self.init_render_thread()
+            self.render_complete_handler(context)
+        
+        if props.render_marker_infos:
+            self.render_pre_handler(context)
+            self._render_thread.start()
+
+            return {'PASS_THROUGH'}
+
+        wm.event_timer_remove(self._timer)
 
         return {'FINISHED'}
 
-    def invoke(self, context, event):
-        props = context.scene.oha_layout_tools
-        if event.shift: props.render_selected = True
+    def cancel(self, context):
+        context.window_manager.event_timer_remove(self._timer)
+        
+        return {'CANCELLED'}
 
-        return self.execute(context)
+    def modal(self, context, event):
+        wm = context.window_manager
+        props = context.scene.oha_layout_tools
+
+        if event.type == 'TIMER':
+            return self.check_render_thread(context)
+        elif event.type == 'ESC':
+            props.render_marker_infos.clear()
+            self.render_complete_handler(context)
+
+            # return {'FINISHED'}
+
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        wm = context.window_manager
+        scene = context.scene
+        props = scene.oha_layout_tools
+
+        wm.modal_handler_add(self)
+        self._timer = wm.event_timer_add(0.5, context.window)
+        self.init_render_thread()
+
+        return {'RUNNING_MODAL'}
+
+class SEQUENCER_OT_ExtractShotfiles_Stat(ExtractShotfiles_Base, bpy.types.Operator):
+    '''Automatically create layout files using marker boundaries - Stat.'''
+    bl_idname = 'sequencer.oha_extract_shot_files_stat'
+    bl_label = 'Create Layout (Stat)'
+    bl_options = {'REGISTER'}
+
+    prev_stat = None
+
+    def check_render_file(self, context):
+        wm = context.window_manager
+        scene = context.scene
+        props = scene.oha_layout_tools
+        context.area.tag_redraw()
+
+        if not self.prev_stat:
+            self.prev_stat = os.stat(context.scene.render.filepath)
+
+            return {'PASS_THROUGH'}
+
+        cur_stat = os.stat(context.scene.render.filepath)
+
+        if self.prev_stat.st_size != cur_stat.st_size:
+            self.prev_stat = cur_stat
+
+            return {'PASS_THROUGH'}
+
+        self.render_complete_handler(context)
+
+        if props.render_marker_infos:
+            self.render_pre_handler(context)
+            self.prev_stat = None
+            bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+
+            return {'PASS_THROUGH'}
+
+        return {'FINISHED'}
+
+    def modal(self, context, event):
+        wm = context.window_manager
+        props = context.scene.oha_layout_tools
+
+        if event.type == 'TIMER':
+            return self.check_render_file(context)
+        elif event.type == 'ESC':
+            props.render_marker_infos.clear()
+            self.render_complete_handler(context)
+
+            return {'FINISHED'}
+
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        wm = context.window_manager
+        scene = context.scene
+        props = scene.oha_layout_tools
+
+        wm.modal_handler_add(self)
+        self._timer = wm.event_timer_add(2.0, context.window)
+
+        if props.render_marker_infos:
+            self.render_pre_handler(context)
+            bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+
+            return {'RUNNING_MODAL'}
+
+        return {'FINISHED'}
+
+class SEQUENCER_OT_ExtractShotfiles_Blocking(ExtractShotfiles_Base, bpy.types.Operator):
+    '''Automatically create layout files using marker boundaries - Blocking.'''
+    bl_idname = 'sequencer.oha_extract_shot_files_blocking'
+    bl_label = 'Create Layout (Blocking)'
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        scene = context.scene
+        props = scene.oha_layout_tools
+
+        while props.render_marker_infos:
+            self.render_pre_handler(context)
+            bpy.ops.render.render('EXEC_DEFAULT', animation=True)
+            self.render_complete_handler(context)
+
+        return {'FINISHED'}
 
 
 # ========================= auxiliary functions ========================
@@ -170,32 +379,6 @@ def write_shot_listing(context, lpath):
         lfile.write("%s:\t%s frames.\n" % (mi['name'],
                                            mi['end'] - mi['start']))
     lfile.close()
-
-def write_shot_files(context):
-    scene = context.scene
-    props = scene.oha_layout_tools
-    scene.timeline_markers.clear()
-    sequences = scene.sequence_editor.sequences
-
-    restore_scene_settings(context)
-    bpy.ops.sequencer.select_all(action='SELECT')
-    bpy.ops.sequencer.delete()
-    for mi in props.marker_infos:
-        duration = mi['end'] - mi['start']
-        scene.frame_end = scene.frame_start + duration
-
-        soundpath = os.path.join(props.render_basepath, 'sounds',
-                                 mi['name']+'.wav')
-        if os.path.isfile(soundpath):
-            seq = sequences.new_sound(mi['name'], soundpath,
-                                      1, scene.frame_start)
-
-        layoutdir = os.path.join(props.render_basepath, 'layouts')
-        markerpath = bpy.path.ensure_ext(
-            filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
-        bpy.ops.wm.save_as_mainfile(filepath=markerpath, copy=True,
-                                    relative_remap=True)
-        sequences.remove(seq)
     
 def adjust_duration_to_effects(context):
     scene = context.scene
@@ -217,88 +400,14 @@ def adjust_duration_to_effects(context):
         if overlap_end:
             mi['end'] = overlap_end[0].frame_final_end
 
-def marker_scene_settings(context, mi):
-    scene = context.scene
-    render = scene.render
-    image = render.image_settings
-    ffmpeg = render.ffmpeg
-
-    scene.frame_start =  mi['start']
-    scene.frame_end = mi['end']
-
-    render.filepath = os.path.join(props.render_basepath, 'sounds',
-                                   mi['name']+'.wav')
-    render.image_settings.file_format = 'H264'
-
-    ffmpeg.format = 'WAV'
-    ffmpeg.audio_codec = 'PCM'
-    ffmpeg.audio_bitrate = 192
-
-def save_scene_settings(context):
-    scene = context.scene
-    render = scene.render
-    image = render.image_settings
-    ffmpeg = render.ffmpeg
-    props = scene.oha_layout_tools
-
-    props.scene_frame_start =  scene.frame_start
-    props.scene_frame_end = scene.frame_end
-
-    props.render_filepath = render.filepath
-    props.image_file_format = image.file_format
-
-    props.ffmpeg_format = ffmpeg.format
-    props.ffmpeg_audio_codec = ffmpeg.audio_codec
-    props.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
-
-def restore_scene_settings(context):
-    scene = context.scene
-    render = scene.render
-    image = render.image_settings
-    ffmpeg = render.ffmpeg
-    props = scene.oha_layout_tools
-
-    scene.frame_start = props.scene_frame_start
-    scene.frame_end = props.scene_frame_end
-    
-    render.filepath = props.render_filepath
-    image.file_format = props.image_file_format
-
-    ffmpeg.format = props.ffmpeg_format
-    ffmpeg.audio_codec = props.ffmpeg_audio_codec
-    ffmpeg.audio_bitrate = props.ffmpeg_audio_bitrate
-
 
 # =========================== addon interface ==========================
-
-@persistent
-def render_pre_handler(dummy):
-    props = bpy.context.scene.oha_layout_tools
-
-    if props.render_marker_infos:
-        rmi = props.render_marker_infos.pop(0)
-        marker_scene_settings(bpy.context, rmi)
-
-@persistent
-def render_complete_handler(dummy):
-    props = bpy.context.scene.oha_layout_tools
-
-    if props.render_marker_infos:
-        rmi = props.render_marker_infos.pop(0)
-        marker_scene_settings(bpy.context, rmi)
-
-        bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
-    else:
-        bpy.app.handlers.render_pre.remove(render_pre_handler)
-        bpy.app.handlers.render_complete.remove(render_complete_handler)
-        props.marker_infos.clear()
-        props.render_marker_infos.clear()
 
 def sequencer_headerbutton(self, context):
     layout = self.layout
 
     row = layout.row(align=True)
-    row.operator('sequencer.oha_extract_shot_files', icon='ALIGN',
+    row.operator('sequencer.oha_extract_shot_files_stat', icon='ALIGN',
                  text='Extract')
 
 def register():
