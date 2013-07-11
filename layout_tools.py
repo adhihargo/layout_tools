@@ -53,6 +53,7 @@ class ExtractShotfiles_Base():
     scene_frame_end = None
 
     render_filepath = None
+    render_display_mode = None
     image_file_format = None
 
     ffmpeg_format = None
@@ -78,18 +79,20 @@ class ExtractShotfiles_Base():
         bpy.ops.sequencer.select_all(action='SELECT')
         bpy.ops.sequencer.delete()
         for mi in props.marker_infos:
-            if self.render_selected and not mi['select']:
+            if (self.render_selected and not mi['select']):
+                continue
+
+            soundpath = os.path.join(self.render_basepath, 'sounds',
+                                     mi['name']+'.wav')
+            if not os.path.exists(soundpath):
                 continue
 
             seq = None
             duration = mi['end'] - mi['start']
             scene.frame_end = scene.frame_start + duration
     
-            soundpath = os.path.join(self.render_basepath, 'sounds',
-                                     mi['name']+'.wav')
-            if os.path.exists(soundpath):
-                seq = sequences.new_sound(mi['name'], soundpath,
-                                          1, scene.frame_start)
+            seq = sequences.new_sound(mi['name'], soundpath,
+                                      1, scene.frame_start)
     
             layoutdir = os.path.join(self.render_basepath, 'layouts')
             markerpath = bpy.path.ensure_ext(
@@ -128,14 +131,22 @@ class ExtractShotfiles_Base():
     
         if props.render_marker_infos:
             rmi = props.render_marker_infos.pop(0)
+            rmi_idx = props.marker_infos.index(rmi) + 1
+            context.area.header_text_set("Rendering shot %s (shot %s of %s)" %
+                                         (rmi['name'], rmi_idx,
+                                          len(props.marker_infos)))
+            context.area.tag_redraw()
             self.marker_scene_settings(context, rmi)
     
     def render_complete_handler(self, context):
         props = context.scene.oha_layout_tools
     
         if not props.render_marker_infos:
+            context.area.header_text_set("Writing shot files...")
+            context.area.tag_redraw()
             self.write_shot_files(context)
             props.marker_infos.clear()
+            context.area.header_text_set()
             bpy.ops.wm.open_mainfile(filepath=self.blendpath)
 
     def save_scene_settings(self, context):
@@ -149,6 +160,7 @@ class ExtractShotfiles_Base():
         self.scene_frame_end = scene.frame_end
     
         self.render_filepath = render.filepath
+        self.render_display_mode = render.display_mode
         self.image_file_format = image.file_format
     
         self.ffmpeg_format = ffmpeg.format
@@ -166,6 +178,7 @@ class ExtractShotfiles_Base():
         scene.frame_end = self.scene_frame_end
         
         render.filepath = self.render_filepath
+        render.display_mode = self.render_display_mode
         image.file_format = self.image_file_format
     
         ffmpeg.format = self.ffmpeg_format
@@ -184,6 +197,7 @@ class ExtractShotfiles_Base():
     
         render.filepath = os.path.join(self.render_basepath, 'sounds',
                                        mi['name']+'.wav')
+        render.display_mode = 'NONE'
         render.image_settings.file_format = 'H264'
     
         ffmpeg.format = 'WAV'
@@ -221,7 +235,7 @@ class ExtractShotfiles_Base():
 class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
     '''Automatically create layout files using marker boundaries - Threading.'''
     bl_idname = 'sequencer.oha_extract_shot_files_threading'
-    bl_label = 'Create Layout'
+    bl_label = 'Create Layout (Threading)'
     bl_options = {'REGISTER'}
 
     _render_thread = None
@@ -285,7 +299,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
 class SEQUENCER_OT_ExtractShotfiles_Stat(ExtractShotfiles_Base, bpy.types.Operator):
     '''Automatically create layout files using marker boundaries - Stat.'''
     bl_idname = 'sequencer.oha_extract_shot_files_stat'
-    bl_label = 'Create Layout (Stat)'
+    bl_label = 'Create Layout'
     bl_options = {'REGISTER'}
 
     prev_stat = None
