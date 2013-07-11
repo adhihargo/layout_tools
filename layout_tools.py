@@ -377,7 +377,7 @@ def write_shot_listing(context, lpath):
     lfile = open(lpath, 'w')
     for mi in props.marker_infos:
         lfile.write("%s:\t%s frames.\n" % (mi['name'],
-                                           mi['end'] - mi['start']))
+                                           mi['end'] - (mi['start']+1)))
     lfile.close()
     
 def adjust_duration_to_effects(context):
