@@ -88,7 +88,7 @@ class ExtractShotfiles_Base():
                 continue
 
             seq = None
-            duration = mi['end'] - mi['start']
+            duration = mi['end'] - (mi['start']+1)
             scene.frame_end = scene.frame_start + duration
     
             seq = sequences.new_sound(mi['name'], soundpath,
@@ -132,9 +132,10 @@ class ExtractShotfiles_Base():
         if props.render_marker_infos:
             rmi = props.render_marker_infos.pop(0)
             rmi_idx = props.marker_infos.index(rmi) + 1
-            context.area.header_text_set("Rendering shot %s (shot %s of %s)" %
-                                         (rmi['name'], rmi_idx,
-                                          len(props.marker_infos)))
+            context.area.header_text_set(
+                'Rendering shot "%s" (%d of %d, %d frames)' %
+                (rmi['name'], rmi_idx, len(props.marker_infos),
+                 rmi['end'] - rmi['start']))
             context.area.tag_redraw()
             self.marker_scene_settings(context, rmi)
     
@@ -142,8 +143,6 @@ class ExtractShotfiles_Base():
         props = context.scene.oha_layout_tools
     
         if not props.render_marker_infos:
-            context.area.header_text_set("Writing shot files...")
-            context.area.tag_redraw()
             self.write_shot_files(context)
             props.marker_infos.clear()
             context.area.header_text_set()
@@ -391,7 +390,7 @@ def write_shot_listing(context, lpath):
     lfile = open(lpath, 'w')
     for mi in props.marker_infos:
         lfile.write("%s:\t%s frames.\n" % (mi['name'],
-                                           mi['end'] - (mi['start']+1)))
+                                           mi['end'] - mi['start']))
     lfile.close()
     
 def adjust_duration_to_effects(context):
