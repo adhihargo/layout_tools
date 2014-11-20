@@ -231,73 +231,10 @@ class ExtractShotfiles_Base():
 
         return self.execute(context)
 
+
 class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
-    '''Automatically create layout files using marker boundaries - Threading.'''
-    bl_idname = 'sequencer.oha_extract_shot_files_threading'
-    bl_label = 'Create Layout (Threading)'
-    bl_options = {'REGISTER'}
-
-    _render_thread = None
-
-    def init_render_thread(self):
-        self._render_thread = threading.Thread(
-            target=bpy.ops.render.render, kwargs={'animation':True})
-
-    def check_render_thread(self, context):
-        wm = context.window_manager
-        scene = context.scene
-        props = scene.oha_layout_tools
-        context.area.tag_redraw()
-
-        if self._render_thread.is_alive():
-            return {'PASS_THROUGH'}
-        else:
-            self.init_render_thread()
-            self.render_complete_handler(context)
-        
-        if props.render_marker_infos:
-            self.render_pre_handler(context)
-            self._render_thread.start()
-
-            return {'PASS_THROUGH'}
-
-        wm.event_timer_remove(self._timer)
-
-        return {'FINISHED'}
-
-    def cancel(self, context):
-        context.window_manager.event_timer_remove(self._timer)
-        
-        return {'CANCELLED'}
-
-    def modal(self, context, event):
-        wm = context.window_manager
-        props = context.scene.oha_layout_tools
-
-        if event.type == 'TIMER':
-            return self.check_render_thread(context)
-        elif event.type == 'ESC':
-            props.render_marker_infos.clear()
-            self.render_complete_handler(context)
-
-            # return {'FINISHED'}
-
-        return {'PASS_THROUGH'}
-
-    def execute(self, context):
-        wm = context.window_manager
-        scene = context.scene
-        props = scene.oha_layout_tools
-
-        wm.modal_handler_add(self)
-        self._timer = wm.event_timer_add(0.5, context.window)
-        self.init_render_thread()
-
-        return {'RUNNING_MODAL'}
-
-class SEQUENCER_OT_ExtractShotfiles_Stat(ExtractShotfiles_Base, bpy.types.Operator):
-    '''Automatically create layout files using marker boundaries - Stat.'''
-    bl_idname = 'sequencer.oha_extract_shot_files_stat'
+    '''Automatically create layout files using marker boundaries.'''
+    bl_idname = 'sequencer.oha_extract_shot_files'
     bl_label = 'Create Layout'
     bl_options = {'REGISTER'}
 
@@ -362,22 +299,6 @@ class SEQUENCER_OT_ExtractShotfiles_Stat(ExtractShotfiles_Base, bpy.types.Operat
 
         return {'FINISHED'}
 
-class SEQUENCER_OT_ExtractShotfiles_Blocking(ExtractShotfiles_Base, bpy.types.Operator):
-    '''Automatically create layout files using marker boundaries - Blocking.'''
-    bl_idname = 'sequencer.oha_extract_shot_files_blocking'
-    bl_label = 'Create Layout (Blocking)'
-    bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        scene = context.scene
-        props = scene.oha_layout_tools
-
-        while props.render_marker_infos:
-            self.render_pre_handler(context)
-            bpy.ops.render.render('EXEC_DEFAULT', animation=True)
-            self.render_complete_handler(context)
-
-        return {'FINISHED'}
 
 
 # ========================= auxiliary functions ========================
@@ -420,7 +341,7 @@ def sequencer_headerbutton(self, context):
     layout = self.layout
 
     row = layout.row(align=True)
-    row.operator('sequencer.oha_extract_shot_files_stat', icon='ALIGN',
+    row.operator('sequencer.oha_extract_shot_files', icon='ALIGN',
                  text='Extract')
 
 def register():
