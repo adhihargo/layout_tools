@@ -54,11 +54,6 @@ class ExtractShotfiles_Base():
 
     render_filepath = None
     render_display_mode = None
-    image_file_format = None
-
-    ffmpeg_format = None
-    ffmpeg_audio_codec = None
-    ffmpeg_audio_bitrate = None
 
     @classmethod
     def poll(self, context):
@@ -160,11 +155,6 @@ class ExtractShotfiles_Base():
     
         self.render_filepath = render.filepath
         self.render_display_mode = render.display_mode
-        self.image_file_format = image.file_format
-    
-        self.ffmpeg_format = ffmpeg.format
-        self.ffmpeg_audio_codec = ffmpeg.audio_codec
-        self.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
     
     def restore_scene_settings(self, context):
         scene = context.scene
@@ -178,12 +168,7 @@ class ExtractShotfiles_Base():
         
         render.filepath = self.render_filepath
         render.display_mode = self.render_display_mode
-        image.file_format = self.image_file_format
     
-        ffmpeg.format = self.ffmpeg_format
-        ffmpeg.audio_codec = self.ffmpeg_audio_codec
-        ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
-
     def marker_scene_settings(self, context, mi):
         scene = context.scene
         render = scene.render
@@ -191,18 +176,13 @@ class ExtractShotfiles_Base():
         ffmpeg = render.ffmpeg
         props = scene.oha_layout_tools
     
-        scene.frame_start =  mi['start']
+        scene.frame_current = scene.frame_start =  mi['start']
         scene.frame_end = mi['end']
     
         render.filepath = os.path.join(self.render_basepath, 'sounds',
                                        mi['name']+'.wav')
         render.display_mode = 'NONE'
-        render.image_settings.file_format = 'H264'
     
-        ffmpeg.format = 'WAV'
-        ffmpeg.audio_codec = 'PCM'
-        ffmpeg.audio_bitrate = 192
-
     def invoke(self, context, event):
         scene = context.scene
         props = scene.oha_layout_tools
