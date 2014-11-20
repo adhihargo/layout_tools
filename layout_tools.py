@@ -247,11 +247,11 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
         context.area.tag_redraw()
 
         if not self.prev_stat:
-            self.prev_stat = os.stat(context.scene.render.filepath)
+            self.prev_stat = os.stat(scene.render.filepath)
 
             return {'PASS_THROUGH'}
 
-        cur_stat = os.stat(context.scene.render.filepath)
+        cur_stat = os.stat(scene.render.filepath)
 
         if self.prev_stat.st_size != cur_stat.st_size:
             self.prev_stat = cur_stat
@@ -263,7 +263,9 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
         if props.render_marker_infos:
             self.render_pre_handler(context)
             self.prev_stat = None
-            bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+            # bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=scene.render.filepath,
+                                  container='WAV', codec='PCM')
 
             return {'PASS_THROUGH'}
 
@@ -293,7 +295,9 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
 
         if props.render_marker_infos:
             self.render_pre_handler(context)
-            bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+            # bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=scene.render.filepath,
+                                  container='WAV', codec='PCM')
 
             return {'RUNNING_MODAL'}
 
