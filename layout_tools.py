@@ -21,7 +21,6 @@
 import bpy
 import os
 from bpy.app.handlers import persistent
-import threading
 
 bl_info = {
     "name": "OHA Layout Tools",
@@ -205,8 +204,8 @@ class ExtractShotfiles_Base():
         if not os.path.exists(layoutdir):
             os.makedirs(layoutdir)
 
-        write_shot_listing(context,
-                           os.path.join(blenddir, blendfile_base + '.txt'))
+        write_shot_listing_txt(props,
+                               os.path.join(blenddir, blendfile_base + '.txt'))
         self.save_scene_settings(context)
 
         return self.execute(context)
@@ -287,9 +286,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
 
 # ========================= auxiliary functions ========================
 
-def write_shot_listing(context, lpath):
-    props = context.scene.oha_layout_tools
-
+def write_shot_listing_txt(props, lpath):
     # Write the duration of each shots (difference of adjacent
     # markers) to a text file.
     lfile = open(lpath, 'w')
