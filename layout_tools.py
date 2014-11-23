@@ -20,19 +20,61 @@
 
 import bpy
 import os
+import zipfile
+import xml.dom
 from bpy.app.handlers import persistent
 
 bl_info = {
     "name": "OHA Layout Tools",
     "author": "Adhi Hargo",
-    "version": (1, 0, 0),
-    "blender": (2, 67, 0),
+    "version": (1, 0, 2),
+    "blender": (2, 71, 0),
     "location": "Sequencer > Tools > OHA Layout Tools",
     "description": "Create layout files.",
     "warning": "",
     "wiki_url": "https://github.com/adhihargo/layout_tools",
     "tracker_url": "https://github.com/adhihargo/layout_tools/issues",
     "category": "Sequencer"}
+
+
+# ========== constants for Open Document Spreadsheet creation ==========
+CONTENT_FN = "content.xml"
+CONTENT_DOCATTRS = set([
+    ("xmlns:office", "urn:oasis:names:tc:opendocument:xmlns:office:1.0"),
+    ("xmlns:style", "urn:oasis:names:tc:opendocument:xmlns:style:1.0"),
+    ("xmlns:text", "urn:oasis:names:tc:opendocument:xmlns:text:1.0"),
+    ("xmlns:table", "urn:oasis:names:tc:opendocument:xmlns:table:1.0"),
+    ("xmlns:fo", "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"),
+    ("xmlns:meta", "urn:oasis:names:tc:opendocument:xmlns:meta:1.0"),
+    ("office:version", "1.2")])
+SETTINGS_FN = "settings.xml"
+SETTINGS_DOCATTRS = set([
+    ("xmlns:office", "urn:oasis:names:tc:opendocument:xmlns:office:1.0"),
+    ("xmlns:xlink", "http://www.w3.org/1999/xlink"),
+    ("xmlns:config", "urn:oasis:names:tc:opendocument:xmlns:config:1.0"),
+    ("xmlns:ooo", "http://openoffice.org/2004/office"),
+    ("office:version", "1.2")])
+META_FN = "meta.xml"
+META_DOCATTRS = set([
+    ("xmlns:office", "urn:oasis:names:tc:opendocument:xmlns:office:1.0"),
+    ("xmlns:xlink", "http://www.w3.org/1999/xlink"),
+    ("xmlns:dc", "http://purl.org/dc/elements/1.1/"),
+    ("xmlns:meta", "urn:oasis:names:tc:opendocument:xmlns:meta:1.0"),
+    ("xmlns:ooo", "http://openoffice.org/2004/office"),
+    ("xmlns:grddl", "http://www.w3.org/2003/g/data-view#"),
+    ("office:version", "1.2")])
+MANIFEST_FN = "META-INF/manifest.xml"
+MANIFEST_DATA = r'''<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+ <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+ <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
+ <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+ <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+ <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>'''
+MIMETYPE_FN = "mimetype"
+MIMETYPE_DATA = "application/vnd.oasis.opendocument.spreadsheet"
+STYLES_FN = "styles.xml"
 
 class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
     render_marker_infos = []
@@ -204,8 +246,8 @@ class ExtractShotfiles_Base():
         if not os.path.exists(layoutdir):
             os.makedirs(layoutdir)
 
-        write_shot_listing_txt(props,
-                               os.path.join(blenddir, blendfile_base + '.txt'))
+        write_shot_listing_ods(props,
+                               os.path.join(blenddir, blendfile_base + '.ods'))
         self.save_scene_settings(context)
 
         return self.execute(context)
@@ -294,6 +336,82 @@ def write_shot_listing_txt(props, lpath):
         lfile.write("%s:\t%s frames.\n" % (mi['name'],
                                            mi['end'] - mi['start']))
     lfile.close()
+
+def write_shot_listing_ods(props, lpath):
+    doc = zipfile.ZipFile(lpath, "w", zipfile.ZIP_DEFLATED)
+
+    doc.writestr(MIMETYPE_FN, MIMETYPE_DATA, zipfile.ZIP_STORED)
+    doc.writestr(MANIFEST_FN, MANIFEST_DATA)
+
+    content_doc = xml.dom.getDOMImplementation().createDocument(
+        "office", "office:document-content", None)
+    for key, value in CONTENT_DOCATTRS:
+        content_doc.documentElement.setAttribute(key, value)
+    for element in ("office:scripts", "office:automatic-styles", "office:font-face-decls"):
+        content_doc.documentElement.appendChild(content_doc.createElement(element))
+    body = content_doc.createElement("office:body")
+    spreadsheet = content_doc.createElement("office:spreadsheet")
+    table = content_doc.createElement("table:table")
+    column = content_doc.createElement("table:table-column")
+    content_doc.documentElement.appendChild(body)
+    body.appendChild(spreadsheet)
+    spreadsheet.appendChild(table)
+    table.appendChild(column)
+
+    table.setAttribute("table:name", "Sheet1")
+    for mi in props.marker_infos:
+        framecount = str(mi['end'] - mi['start'])
+        row = content_doc.createElement("table:table-row")
+
+        cell1 = content_doc.createElement("table:table-cell")
+        cell1.setAttribute("office:value-type", "string")
+        text1 = content_doc.createElement("text:p")
+        text1_data = content_doc.createTextNode(mi["name"])
+        text1.appendChild(text1_data)
+        cell1.appendChild(text1)
+
+        cell2 = content_doc.createElement("table:table-cell")
+        cell2.setAttribute("office:value-type", "float")
+        cell2.setAttribute("office:value", framecount)
+        text2 = content_doc.createElement("text:p")
+        text2_data = content_doc.createTextNode(framecount)
+        text2.appendChild(text2_data)
+        cell2.appendChild(text2)
+
+        table.appendChild(row)
+        row.appendChild(cell1)
+        row.appendChild(cell2)
+
+    doc.writestr(CONTENT_FN, content_doc.toxml(encoding="UTF-8"))
+
+    meta_doc = xml.dom.getDOMImplementation().createDocument(
+        "office", "office:document-meta", None)
+    for key, value in META_DOCATTRS:
+        meta_doc.documentElement.setAttribute(key, value)
+    meta = meta_doc.createElement("office:meta")
+    meta_doc.documentElement.appendChild(meta)
+    doc.writestr(META_FN, meta_doc.toxml(encoding="UTF-8"))
+
+    settings_doc = xml.dom.getDOMImplementation().createDocument(
+        "office", "office:document-settings", None)
+    for key, value in SETTINGS_DOCATTRS:
+        settings_doc.documentElement.setAttribute(key, value)
+    settings = settings_doc.createElement("office:settings")
+    settings_doc.documentElement.appendChild(settings)
+    doc.writestr(SETTINGS_FN, settings_doc.toxml(encoding="UTF-8"))
+
+    styles_doc = xml.dom.getDOMImplementation().createDocument(
+        "office", "office:document-styles", None)
+    for key, value in CONTENT_DOCATTRS:
+        styles_doc.documentElement.setAttribute(key, value)
+    styles = styles_doc.createElement("office:styles")
+    styles_doc.documentElement.appendChild(styles)
+    masterstyles = styles_doc.createElement("office:master-styles")
+    styles_doc.documentElement.appendChild(masterstyles)
+    autostyles = styles_doc.createElement("office:automatic-styles")
+    styles_doc.documentElement.appendChild(autostyles)
+    doc.writestr(STYLES_FN, styles_doc.toxml(encoding="UTF-8"))
+
     
 def adjust_duration_to_effects(context):
     scene = context.scene
