@@ -194,7 +194,6 @@ class ExtractShotfiles_Base():
         self.scene_frame_start =  scene.frame_start
         self.scene_frame_end = scene.frame_end
     
-        self.render_filepath = render.filepath
         self.render_display_mode = render.display_mode
     
     def restore_scene_settings(self, context):
@@ -207,7 +206,6 @@ class ExtractShotfiles_Base():
         scene.frame_start = self.scene_frame_start
         scene.frame_end = self.scene_frame_end
         
-        render.filepath = self.render_filepath
         render.display_mode = self.render_display_mode
     
     def marker_scene_settings(self, context, mi):
@@ -220,8 +218,8 @@ class ExtractShotfiles_Base():
         scene.frame_current = scene.frame_start =  mi['start']
         scene.frame_end = mi['end']
     
-        render.filepath = os.path.join(self.render_basepath, 'sounds',
-                                       mi['name']+'.wav')
+        self.render_filepath = os.path.join(self.render_basepath, 'sounds',
+                                            mi['name']+'.wav')
         render.display_mode = 'NONE'
     
     def invoke(self, context, event):
@@ -268,11 +266,11 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
         context.area.tag_redraw()
 
         if not self.prev_stat:
-            self.prev_stat = os.stat(scene.render.filepath)
+            self.prev_stat = os.stat(self.render_filepath)
 
             return {'PASS_THROUGH'}
 
-        cur_stat = os.stat(scene.render.filepath)
+        cur_stat = os.stat(self.render_filepath)
 
         if self.prev_stat.st_size != cur_stat.st_size:
             self.prev_stat = cur_stat
@@ -284,9 +282,8 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
         if props.render_marker_infos:
             self.render_pre_handler(context)
             self.prev_stat = None
-            # bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
-            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=scene.render.filepath,
-                                  container='WAV', codec='PCM')
+            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath,
+                                  container='WAV')
 
             return {'PASS_THROUGH'}
 
@@ -316,9 +313,8 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
 
         if props.render_marker_infos:
             self.render_pre_handler(context)
-            # bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
-            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=scene.render.filepath,
-                                  container='WAV', codec='PCM')
+            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath,
+                                  container='WAV')
 
             return {'RUNNING_MODAL'}
 
