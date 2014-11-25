@@ -23,6 +23,7 @@ import os
 import zipfile
 import xml.dom
 from bpy.app.handlers import persistent
+from bpy.types import Operator
 
 bl_info = {
     "name": "OHA Layout Tools",
@@ -254,7 +255,7 @@ class ExtractShotfiles_Base():
         return self.execute(context)
 
 
-class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
+class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
     '''Automatically create layout files using marker boundaries.'''
     bl_idname = 'sequencer.oha_extract_shot_files'
     bl_label = 'Create Layout'
@@ -357,29 +358,88 @@ def write_shot_listing_ods(props, lpath):
     spreadsheet.appendChild(table)
     table.appendChild(column)
 
+    # Insert header
+    if True:
+        row = content_doc.createElement("table:table-row")
+
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "string")
+        # cell.setAttribute("table:style-name", "Heading")
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode("Shot")
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
+
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "string")
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode("Frame Start")
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
+
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "string")
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode("Frame End")
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
+
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "string")
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode("Duration")
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
+
+        table.appendChild(row)
+
     table.setAttribute("table:name", "Sheet1")
     for mi in props.marker_infos:
+        framestart = str(mi['start'])
+        frameend = str(mi['end'])
         framecount = str(mi['end'] - mi['start'])
         row = content_doc.createElement("table:table-row")
 
-        cell1 = content_doc.createElement("table:table-cell")
-        cell1.setAttribute("office:value-type", "string")
-        text1 = content_doc.createElement("text:p")
-        text1_data = content_doc.createTextNode(mi["name"])
-        text1.appendChild(text1_data)
-        cell1.appendChild(text1)
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "string")
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode(mi["name"])
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
 
-        cell2 = content_doc.createElement("table:table-cell")
-        cell2.setAttribute("office:value-type", "float")
-        cell2.setAttribute("office:value", framecount)
-        text2 = content_doc.createElement("text:p")
-        text2_data = content_doc.createTextNode(framecount)
-        text2.appendChild(text2_data)
-        cell2.appendChild(text2)
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "float")
+        cell.setAttribute("office:value", framestart)
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode(framestart)
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
+
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "float")
+        cell.setAttribute("office:value", frameend)
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode(frameend)
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
+
+        cell = content_doc.createElement("table:table-cell")
+        cell.setAttribute("office:value-type", "float")
+        cell.setAttribute("office:value", framecount)
+        text = content_doc.createElement("text:p")
+        text_data = content_doc.createTextNode(framecount)
+        text.appendChild(text_data)
+        cell.appendChild(text)
+        row.appendChild(cell)
 
         table.appendChild(row)
-        row.appendChild(cell1)
-        row.appendChild(cell2)
 
     doc.writestr(CONTENT_FN, content_doc.toxml(encoding="UTF-8"))
 
