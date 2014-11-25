@@ -243,6 +243,9 @@ class ExtractShotfiles_Base():
         layoutdir = os.path.join(self.render_basepath, 'layouts')
         if not os.path.exists(layoutdir):
             os.makedirs(layoutdir)
+        sounddir = os.path.join(self.render_basepath, 'sounds')
+        if not os.path.exists(sounddir):
+            os.makedirs(sounddir)
 
         write_shot_listing_ods(props,
                                os.path.join(blenddir, blendfile_base + '.ods'))
