@@ -22,6 +22,7 @@ import bpy
 import os
 import zipfile
 import xml.dom
+from bpy_extras.io_utils import ImportHelper
 from bpy.app.handlers import persistent
 from bpy.types import Operator
 
@@ -326,6 +327,53 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
 
 
 
+class SCENE_OT_ImportAssets(Operator, ImportHelper):
+    """Import all assets from other .blend file"""
+    bl_idname = "scene.oha_import"
+    bl_label = "Import Assets"
+
+    # ImportHelper mixin class uses this
+    filename_ext = ".blend"
+
+    filter_glob = bpy.props.StringProperty(
+            default="*.blend",
+            options={'HIDDEN'},
+            )
+
+    def execute(self, context):
+        return self.import_blend_data(context, self.filepath)
+
+    def import_blend_data(self, context, filepath):
+        scene_list = []
+        with bpy.data.libraries.load(filepath) as (data_from, data_to):
+            scene_list.extend(data_from.scenes)
+
+        for scene_name in scene_list:
+            old_scene = bpy.data.scenes.get(scene_name, None)
+            if old_scene:
+                old_scene.name = scene_name + ".001"
+
+            od = dict(filepath=filepath, obj=scene_name, sep=os.sep)
+            obj_dirpath = "%(filepath)s%(sep)sScene%(sep)s" % od
+            obj_filepath = obj_dirpath + scene_name
+
+            bpy.ops.wm.append(
+                directory=obj_dirpath,
+                filepath=obj_filepath,
+                filename=scene_name,
+                filemode=1,
+                link=False,
+                autoselect=False,
+                active_layer=False,
+                instance_groups=False)
+            new_scene = bpy.data.scenes[scene_name]
+
+            if old_scene:
+                bpy.data.scenes.remove(old_scene)
+
+        return {'FINISHED'}
+
+
 # ========================= auxiliary functions ========================
 
 def write_shot_listing_txt(props, lpath):
@@ -502,8 +550,12 @@ def sequencer_headerbutton(self, context):
     row.operator('sequencer.oha_extract_shot_files', icon='ALIGN',
                  text='Extract')
 
+def menu_func_import(self, context):
+    self.layout.operator("scene.oha_import")
+
 def register():
     bpy.utils.register_module(__name__)
+    bpy.types.INFO_MT_file_import.append(menu_func_import)
 
     bpy.types.Scene.oha_layout_tools = bpy.props.PointerProperty(
         type = OHA_LayoutToolsProps)
@@ -511,6 +563,7 @@ def register():
 
 def unregister():
     bpy.utils.unregister_module(__name__)
+    bpy.types.INFO_MT_file_import.remove(menu_func_import)
 
     del bpy.types.Scene.oha_layout_tools
     bpy.types.SEQUENCER_HT_header.remove(sequencer_headerbutton)
