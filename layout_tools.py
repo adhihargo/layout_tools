@@ -481,25 +481,23 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
             )
 
     def execute(self, context):
-        return self.import_blend_data(context, self.filepath)
-
-    def import_blend_data(self, context, filepath):
+        cur_scene = context.scene
         scene_list = []
-        with bpy.data.libraries.load(filepath) as (data_from, data_to):
+        with bpy.data.libraries.load(self.filepath) as (data_from, data_to):
             scene_list.extend(data_from.scenes)
 
         for scene_name in scene_list:
             old_scene = bpy.data.scenes.get(scene_name, None)
             if old_scene:
-                old_scene.name = scene_name + ".001"
+                old_scene.name = scene_name + ".orig"
 
-            od = dict(filepath=filepath, obj=scene_name, sep=os.sep)
-            obj_dirpath = "%(filepath)s%(sep)sScene%(sep)s" % od
-            obj_filepath = obj_dirpath + scene_name
+            od = dict(filepath=self.filepath, obj=scene_name, sep=os.sep)
+            scene_dirpath = "%(filepath)s%(sep)sScene%(sep)s" % od
+            scene_filepath = scene_dirpath + scene_name
 
             bpy.ops.wm.append(
-                directory=obj_dirpath,
-                filepath=obj_filepath,
+                directory=scene_dirpath,
+                filepath=scene_filepath,
                 filename=scene_name,
                 filemode=1,
                 link=False,
@@ -508,8 +506,15 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
                 instance_groups=False)
             new_scene = bpy.data.scenes[scene_name]
 
+            for obj in new_scene.objects:
+                obj.select = False
+                cur_scene.objects.link(obj)
+            cur_scene.update()
+
             if old_scene:
-                bpy.data.scenes.remove(old_scene)
+                new_scene.name = scene_name + ".001"
+                old_scene.name = scene_name
+            bpy.data.scenes.remove(new_scene)
 
         return {'FINISHED'}
 
