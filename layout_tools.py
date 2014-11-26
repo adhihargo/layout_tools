@@ -107,6 +107,146 @@ class ExtractShotfiles_Base():
         return context.blend_data.is_saved\
             and not props.render_marker_infos
 
+    def write_shot_listing_ods(self, props, lpath):
+        try:
+            doc = zipfile.ZipFile(lpath, "w", zipfile.ZIP_DEFLATED)
+        except:
+            self.report({"WARNING"}, 'Unable to open "%s", shotlist not written.' % lpath)
+            return
+
+        doc.writestr(MIMETYPE_FN, MIMETYPE_DATA, zipfile.ZIP_STORED)
+        doc.writestr(MANIFEST_FN, MANIFEST_DATA)
+
+        content_doc = xml.dom.getDOMImplementation().createDocument(
+            "office", "office:document-content", None)
+        content_element = content_doc.documentElement
+        for key, value in CONTENT_DOCATTRS:
+            content_doc.documentElement.setAttribute(key, value)
+        for element in ("office:scripts", "office:automatic-styles",
+                        "office:font-face-decls"):
+            content_doc.documentElement.appendChild(content_doc.createElement(element))
+        body = content_doc.createElement("office:body")
+        spreadsheet = content_doc.createElement("office:spreadsheet")
+        table = content_doc.createElement("table:table")
+        column = content_doc.createElement("table:table-column")
+        content_element.appendChild(body)
+        body.appendChild(spreadsheet)
+        spreadsheet.appendChild(table)
+        table.appendChild(column)
+
+        # Insert header
+        if True:
+            row = content_doc.createElement("table:table-row")
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "string")
+            # cell.setAttribute("table:style-name", "Heading")
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode("Shot")
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "string")
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode("Frame Start")
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "string")
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode("Frame End")
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "string")
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode("Duration")
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            table.appendChild(row)
+
+        table.setAttribute("table:name", "Sheet1")
+        for mi in props.marker_infos:
+            framestart = str(mi['start'])
+            frameend = str(mi['end'])
+            framecount = str(mi['end'] - mi['start'])
+            row = content_doc.createElement("table:table-row")
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "string")
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode(mi["name"])
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "float")
+            cell.setAttribute("office:value", framestart)
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode(framestart)
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "float")
+            cell.setAttribute("office:value", frameend)
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode(frameend)
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            cell = content_doc.createElement("table:table-cell")
+            cell.setAttribute("office:value-type", "float")
+            cell.setAttribute("office:value", framecount)
+            text = content_doc.createElement("text:p")
+            text_data = content_doc.createTextNode(framecount)
+            text.appendChild(text_data)
+            cell.appendChild(text)
+            row.appendChild(cell)
+
+            table.appendChild(row)
+
+        doc.writestr(CONTENT_FN, content_doc.toxml(encoding="UTF-8"))
+
+        meta_doc = xml.dom.getDOMImplementation().createDocument(
+            "office", "office:document-meta", None)
+        for key, value in META_DOCATTRS:
+            meta_doc.documentElement.setAttribute(key, value)
+        meta = meta_doc.createElement("office:meta")
+        meta_doc.documentElement.appendChild(meta)
+        doc.writestr(META_FN, meta_doc.toxml(encoding="UTF-8"))
+
+        settings_doc = xml.dom.getDOMImplementation().createDocument(
+            "office", "office:document-settings", None)
+        for key, value in SETTINGS_DOCATTRS:
+            settings_doc.documentElement.setAttribute(key, value)
+        settings = settings_doc.createElement("office:settings")
+        settings_doc.documentElement.appendChild(settings)
+        doc.writestr(SETTINGS_FN, settings_doc.toxml(encoding="UTF-8"))
+
+        styles_doc = xml.dom.getDOMImplementation().createDocument(
+            "office", "office:document-styles", None)
+        for key, value in CONTENT_DOCATTRS:
+            styles_doc.documentElement.setAttribute(key, value)
+        styles = styles_doc.createElement("office:styles")
+        styles_doc.documentElement.appendChild(styles)
+        masterstyles = styles_doc.createElement("office:master-styles")
+        styles_doc.documentElement.appendChild(masterstyles)
+        autostyles = styles_doc.createElement("office:automatic-styles")
+        styles_doc.documentElement.appendChild(autostyles)
+        doc.writestr(STYLES_FN, styles_doc.toxml(encoding="UTF-8"))
+
     def write_shot_files(self, context):
         scene = context.scene
         props = scene.oha_layout_tools
@@ -376,150 +516,6 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
 
 # ========================= auxiliary functions ========================
 
-def write_shot_listing_txt(props, lpath):
-    # Write the duration of each shots (difference of adjacent
-    # markers) to a text file.
-    lfile = open(lpath, 'w')
-    for mi in props.marker_infos:
-        lfile.write("%s:\t%s frames.\n" % (mi['name'],
-                                           mi['end'] - mi['start']))
-    lfile.close()
-
-def write_shot_listing_ods(props, lpath):
-    doc = zipfile.ZipFile(lpath, "w", zipfile.ZIP_DEFLATED)
-
-    doc.writestr(MIMETYPE_FN, MIMETYPE_DATA, zipfile.ZIP_STORED)
-    doc.writestr(MANIFEST_FN, MANIFEST_DATA)
-
-    content_doc = xml.dom.getDOMImplementation().createDocument(
-        "office", "office:document-content", None)
-    for key, value in CONTENT_DOCATTRS:
-        content_doc.documentElement.setAttribute(key, value)
-    for element in ("office:scripts", "office:automatic-styles", "office:font-face-decls"):
-        content_doc.documentElement.appendChild(content_doc.createElement(element))
-    body = content_doc.createElement("office:body")
-    spreadsheet = content_doc.createElement("office:spreadsheet")
-    table = content_doc.createElement("table:table")
-    column = content_doc.createElement("table:table-column")
-    content_doc.documentElement.appendChild(body)
-    body.appendChild(spreadsheet)
-    spreadsheet.appendChild(table)
-    table.appendChild(column)
-
-    # Insert header
-    if True:
-        row = content_doc.createElement("table:table-row")
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "string")
-        # cell.setAttribute("table:style-name", "Heading")
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode("Shot")
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "string")
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode("Frame Start")
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "string")
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode("Frame End")
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "string")
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode("Duration")
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        table.appendChild(row)
-
-    table.setAttribute("table:name", "Sheet1")
-    for mi in props.marker_infos:
-        framestart = str(mi['start'])
-        frameend = str(mi['end'])
-        framecount = str(mi['end'] - mi['start'])
-        row = content_doc.createElement("table:table-row")
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "string")
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode(mi["name"])
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "float")
-        cell.setAttribute("office:value", framestart)
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode(framestart)
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "float")
-        cell.setAttribute("office:value", frameend)
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode(frameend)
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        cell = content_doc.createElement("table:table-cell")
-        cell.setAttribute("office:value-type", "float")
-        cell.setAttribute("office:value", framecount)
-        text = content_doc.createElement("text:p")
-        text_data = content_doc.createTextNode(framecount)
-        text.appendChild(text_data)
-        cell.appendChild(text)
-        row.appendChild(cell)
-
-        table.appendChild(row)
-
-    doc.writestr(CONTENT_FN, content_doc.toxml(encoding="UTF-8"))
-
-    meta_doc = xml.dom.getDOMImplementation().createDocument(
-        "office", "office:document-meta", None)
-    for key, value in META_DOCATTRS:
-        meta_doc.documentElement.setAttribute(key, value)
-    meta = meta_doc.createElement("office:meta")
-    meta_doc.documentElement.appendChild(meta)
-    doc.writestr(META_FN, meta_doc.toxml(encoding="UTF-8"))
-
-    settings_doc = xml.dom.getDOMImplementation().createDocument(
-        "office", "office:document-settings", None)
-    for key, value in SETTINGS_DOCATTRS:
-        settings_doc.documentElement.setAttribute(key, value)
-    settings = settings_doc.createElement("office:settings")
-    settings_doc.documentElement.appendChild(settings)
-    doc.writestr(SETTINGS_FN, settings_doc.toxml(encoding="UTF-8"))
-
-    styles_doc = xml.dom.getDOMImplementation().createDocument(
-        "office", "office:document-styles", None)
-    for key, value in CONTENT_DOCATTRS:
-        styles_doc.documentElement.setAttribute(key, value)
-    styles = styles_doc.createElement("office:styles")
-    styles_doc.documentElement.appendChild(styles)
-    masterstyles = styles_doc.createElement("office:master-styles")
-    styles_doc.documentElement.appendChild(masterstyles)
-    autostyles = styles_doc.createElement("office:automatic-styles")
-    styles_doc.documentElement.appendChild(autostyles)
-    doc.writestr(STYLES_FN, styles_doc.toxml(encoding="UTF-8"))
-
-    
 def adjust_duration_to_effects(context):
     scene = context.scene
     props = scene.oha_layout_tools
