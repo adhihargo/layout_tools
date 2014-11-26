@@ -527,9 +527,9 @@ def adjust_duration_to_effects(context):
 
     effects = [seq for seq in sequences
                if isinstance(seq, bpy.types.EffectSequence)
-               and seq.type not in ['COLOR',
-                                    'MULTICAM',
-                                    'ADJUSTMENT']]
+               and seq.type in ['CROSS', 'ADD', 'SUBTRACT', 'ALPHA_OVER',
+                                'ALPHA_UNDER', 'GAMMA_CROSS', 'MULTIPLY',
+                                'OVER_DROP', 'WIPE']]
     for mi in props.marker_infos:
         overlap_start = [e for e in effects
                          if mi['start'] == e.frame_final_end]
