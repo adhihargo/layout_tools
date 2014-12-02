@@ -121,6 +121,10 @@ class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
 # ============================== operators =============================
 
 class ExtractShotfiles_Base():
+    # This class contains the main shot initialization codes. Its
+    # separation from the outermost operator class doing the actual
+    # rendering, below, is to allow me to experiment with different
+    # render monitoring methods. Otherwise they can be safely merged.
     blendpath = None            # path of .blend file to restore back to
     render_basepath = None      # base path of layout files
     render_selected = False
