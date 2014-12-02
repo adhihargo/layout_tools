@@ -497,7 +497,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
             self.render_pre_handler(context)
             self.prev_stat = None
             bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath,
-                                  container='WAV')
+                                  container='WAV', codec="PCM")
 
             return {'PASS_THROUGH'}
 
@@ -532,7 +532,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         if props.render_marker_infos:
             self.render_pre_handler(context)
             bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath,
-                                  container='WAV')
+                                  container='WAV', codec="PCM")
 
             return {'RUNNING_MODAL'}
 
