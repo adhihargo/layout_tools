@@ -389,8 +389,8 @@ class ExtractShotfiles_Base():
         if not os.path.exists(sounddir):
             os.makedirs(sounddir)
 
-        write_shot_listing_ods(props,
-                               os.path.join(blenddir, blendfile_base + '.ods'))
+        self.write_shot_listing_ods(props,
+                                    os.path.join(blenddir, blendfile_base + '.ods'))
         self.save_scene_settings(context)
 
         return self.execute(context)
