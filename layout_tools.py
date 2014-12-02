@@ -19,6 +19,8 @@
 # Author: Adhi Hargo (cadmus.sw@gmail.com)
 
 import bpy
+import csv
+import re
 import os
 import zipfile
 import xml.dom
@@ -82,6 +84,39 @@ class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
     render_marker_infos = []
     marker_infos = []
 
+class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
+    bl_idname = __name__
+
+    is_export_ods = bpy.props.BoolProperty(
+        name="Shot List to Spreadsheet",
+        description="Write shot list to Open Document spreadsheet (.ods)",
+        default=True)
+
+    is_export_csv = bpy.props.BoolProperty(
+        name="Shot List to CSV Textfile",
+        description="Write shot list to Excel comma-separated values.",
+        default=False)
+
+    layout_path = bpy.props.StringProperty(
+        name="Base Layout Path",
+        description="""Base path for all extracted sound and .blend files.
+%(blendname): Name of current .blend file.""",
+        default="../%(blendname)"
+    )
+
+    def draw(self, context):
+        layout = self.layout
+
+        cols = layout.column_flow(columns=2, align=True)
+
+        cols.label("Export Format:")
+        row = cols.row(align=True)
+        row.prop(self, "is_export_ods", text="ODS", toggle=True)
+        row.prop(self, "is_export_csv", text="CSV", toggle=True)
+
+        cols.label("Layout Path:")
+        cols.prop(self, "layout_path", text="")
+
 
 # ============================== operators =============================
 
@@ -106,6 +141,20 @@ class ExtractShotfiles_Base():
         # and there's no unrendered shot marker.
         return context.blend_data.is_saved\
             and not props.render_marker_infos
+
+    def write_shot_listing_csv(self, props, lpath):
+        try:
+            csvfile = open(lpath, "w", newline='')
+        except:
+            self.report({"WARNING"}, 'Unable to open "%s", shotlist not written.' % lpath)
+            return
+
+        csvwriter = csv.writer(csvfile, dialect="excel-tab", quoting=csv.QUOTE_MINIMAL)
+        csvwriter.writerow(["Shot", "Start", "End", "Duration"])
+        for mi in props.marker_infos:
+            csvwriter.writerow([mi['name'], mi['start'], mi['end'], mi['end'] - mi['start']])
+
+        csvfile.close()
 
     def write_shot_listing_ods(self, props, lpath):
         try:
@@ -367,9 +416,13 @@ class ExtractShotfiles_Base():
     def invoke(self, context, event):
         scene = context.scene
         props = scene.oha_layout_tools
+        prefs = context.user_preferences.addons[__name__].preferences
 
         self.render_selected = event.shift == True
 
+        if not context.blend_data.is_saved:
+            self.report({"ERROR"}, "Could not extract from unsaved file.")
+            return {"CANCELLED"}
         self.blendpath = bpy.path.abspath(context.blend_data.filepath)
 
         self.init_marker_infos(context)
@@ -378,10 +431,18 @@ class ExtractShotfiles_Base():
         adjust_duration_to_effects(context)
         
         blenddir, blendfile = os.path.split(self.blendpath)
-        blenddir0, blenddir1 = os.path.split(blenddir)
-        blendfile_base = os.path.splitext(blendfile)[0]
+        blendname = os.path.splitext(blendfile)[0]
+        template_str = re.sub(r"(%\([^)]+\))", r"\1s", prefs.layout_path.strip())
+        template_dict = dict(blendname=blendname)
+        self.render_basepath = os.path.abspath(
+            os.path.join(blenddir, template_str % template_dict))
 
-        self.render_basepath = os.path.join(blenddir0, blendfile_base)
+        if not os.path.exists(self.render_basepath):
+            try:
+                os.makedirs(self.render_basepath)
+            except:
+                self.report({"ERROR"}, "Unable to create layout directory.")
+
         layoutdir = os.path.join(self.render_basepath, 'layouts')
         if not os.path.exists(layoutdir):
             os.makedirs(layoutdir)
@@ -389,8 +450,12 @@ class ExtractShotfiles_Base():
         if not os.path.exists(sounddir):
             os.makedirs(sounddir)
 
-        self.write_shot_listing_ods(props,
-                                    os.path.join(blenddir, blendfile_base + '.ods'))
+        if prefs.is_export_ods:
+            self.write_shot_listing_ods(
+                props, os.path.join(blenddir, blendname + '.ods'))
+        if prefs.is_export_csv:
+            self.write_shot_listing_csv(
+                props, os.path.join(blenddir, blendname + '.txt'))
         self.save_scene_settings(context)
 
         return self.execute(context)
@@ -452,6 +517,10 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         wm = context.window_manager
         scene = context.scene
         props = scene.oha_layout_tools
+
+        if not self.blendpath:
+            self.report({"ERROR"}, "Could not extract from unsaved file.")
+            return {"CANCELLED"}
 
         wm.modal_handler_add(self)
         self._timer = wm.event_timer_add(2.0, context.window)
