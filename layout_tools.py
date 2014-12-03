@@ -101,8 +101,12 @@ class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
         name="Base Layout Path",
         description="""Base path for all extracted sound and .blend files.
 %(blendname): Name of current .blend file.""",
-        default="../%(blendname)"
-    )
+        default="../%(blendname)")
+
+    is_render_video = bpy.props.BoolProperty(
+        name="Render Video",
+        description="Render video instead of audio file.",
+        default=False)
 
     def draw(self, context):
         layout = self.layout
@@ -116,6 +120,9 @@ class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
 
         cols.label("Layout Path:")
         cols.prop(self, "layout_path", text="")
+
+        row = layout.row()
+        row.prop(self, "is_render_video")
 
 
 # ============================== operators =============================
@@ -133,9 +140,18 @@ class ExtractShotfiles_Base():
 
     scene_frame_start = None
     scene_frame_end = None
+    scene_use_audio = None
 
     render_filepath = None
+    render_filepath_vid = None
+    render_filepath_aud = None
     render_display_mode = None
+
+    image_file_format = None
+
+    ffmpeg_format = None
+    ffmpeg_audio_codec = None
+    ffmpeg_audio_bitrate = None
 
     @classmethod
     def poll(self, context):
@@ -303,6 +319,7 @@ class ExtractShotfiles_Base():
     def write_shot_files(self, context):
         scene = context.scene
         props = scene.oha_layout_tools
+        prefs = context.user_preferences.addons[__name__].preferences
         sequences = scene.sequence_editor.sequences
         scene.timeline_markers.clear()
     
@@ -313,25 +330,42 @@ class ExtractShotfiles_Base():
             if (self.render_selected and not mi['select']):
                 continue
 
-            soundpath = os.path.join(self.render_basepath, 'sounds',
-                                     mi['name']+'.wav')
-            if not os.path.exists(soundpath):
-                continue
-
             seq = None
-            duration = mi['end'] - (mi['start']+1)
-            scene.frame_end = scene.frame_start + duration
-    
-            seq = sequences.new_sound(mi['name'], soundpath,
-                                      1, scene.frame_start)
+            seq2 = None
+            path = None
+
+            if prefs.is_render_video: # Add video strip
+                path = os.path.join(self.render_basepath, 'sounds',
+                                    mi['name']+'.mov')
+                if os.path.exists(path):
+                    duration = mi['end'] - (mi['start']+1)
+                    scene.frame_end = scene.frame_start + duration
+
+                    seq = sequences.new_sound(mi['name'], path,
+                                              1, scene.frame_start)
+                    seq2 = sequences.new_movie(mi['name'], path,
+                                               2, scene.frame_start)
+            else: # Add sound strip
+                path = os.path.join(self.render_basepath, 'sounds',
+                                    mi['name']+'.wav')
+                if os.path.exists(path):
+                    duration = mi['end'] - (mi['start']+1)
+                    scene.frame_end = scene.frame_start + duration
+
+                    seq = sequences.new_sound(mi['name'], path,
+                                              1, scene.frame_start)
     
             layoutdir = os.path.join(self.render_basepath, 'layouts')
             markerpath = bpy.path.ensure_ext(
                 filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
             bpy.ops.wm.save_as_mainfile(filepath=markerpath, copy=True,
                                         relative_remap=True)
+
+            # Remove strips, prepare for next file
             if seq:
                 sequences.remove(seq)
+            if seq2:
+                sequences.remove(seq2)
 
     def init_marker_infos(self, context):
         # Store marker informations so the markers themselves can be
@@ -388,9 +422,17 @@ class ExtractShotfiles_Base():
     
         self.scene_frame_start =  scene.frame_start
         self.scene_frame_end = scene.frame_end
-    
+        self.scene_use_audio = scene.use_audio
+
+        self.render_filepath = render.filepath
         self.render_display_mode = render.display_mode
     
+        self.image_file_format = image.file_format
+
+        self.ffmpeg_format = ffmpeg.format
+        self.ffmpeg_audio_codec = ffmpeg.audio_codec
+        self.ffmpeg_audio_bitrate = ffmpeg.audio_bitrate
+
     def restore_scene_settings(self, context):
         scene = context.scene
         render = scene.render
@@ -400,8 +442,15 @@ class ExtractShotfiles_Base():
     
         scene.frame_start = self.scene_frame_start
         scene.frame_end = self.scene_frame_end
-        
+        scene.use_audio = self.scene_use_audio
+
+        render.filepath = self.render_filepath
         render.display_mode = self.render_display_mode
+
+        image.file_format = self.image_file_format
+        ffmpeg.format = self.ffmpeg_format
+        ffmpeg.audio_codec = self.ffmpeg_audio_codec
+        ffmpeg.audio_bitrate = self.ffmpeg_audio_bitrate
     
     def marker_scene_settings(self, context, mi):
         scene = context.scene
@@ -412,10 +461,20 @@ class ExtractShotfiles_Base():
     
         scene.frame_current = scene.frame_start =  mi['start']
         scene.frame_end = mi['end']
+        scene.use_audio = False # Audio mustn't be muted upon mixdown.
     
-        self.render_filepath = os.path.join(self.render_basepath, 'sounds',
-                                            mi['name']+'.wav')
+        self.render_filepath_vid = os.path.join(self.render_basepath, 'sounds',
+                                                mi['name']+'.mov')
+        self.render_filepath_aud = os.path.join(self.render_basepath, 'sounds',
+                                                mi['name']+'.wav')
+        render.filepath = self.render_filepath_vid
         render.display_mode = 'NONE'
+
+        image.file_format = "H264"
+
+        ffmpeg.format = 'QUICKTIME'
+        ffmpeg.audio_codec = 'MP3'
+        ffmpeg.audio_bitrate = 192
     
     def invoke(self, context, event):
         scene = context.scene
@@ -477,18 +536,20 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         wm = context.window_manager
         scene = context.scene
         props = scene.oha_layout_tools
+        prefs = context.user_preferences.addons[__name__].preferences
         context.area.tag_redraw()
 
-        if not self.prev_stat:
-            self.prev_stat = os.stat(self.render_filepath)
+        file_stat = self.render_filepath_vid if prefs.is_render_video\
+                    else self.render_filepath_aud
 
+        if not self.prev_stat:
+            self.prev_stat = os.stat(file_stat)
             return {'PASS_THROUGH'}
 
-        cur_stat = os.stat(self.render_filepath)
+        cur_stat = os.stat(file_stat)
 
         if self.prev_stat.st_size != cur_stat.st_size:
             self.prev_stat = cur_stat
-
             return {'PASS_THROUGH'}
 
         self.render_complete_handler(context)
@@ -496,8 +557,11 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         if props.render_marker_infos:
             self.render_pre_handler(context)
             self.prev_stat = None
-            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath,
-                                  container='WAV', codec="PCM")
+            if prefs.is_render_video:
+                bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+            else:
+                bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath_aud,
+                                      container='WAV', codec="PCM")
 
             return {'PASS_THROUGH'}
 
@@ -521,6 +585,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         wm = context.window_manager
         scene = context.scene
         props = scene.oha_layout_tools
+        prefs = context.user_preferences.addons[__name__].preferences
 
         if not self.blendpath:
             self.report({"ERROR"}, "Could not extract from unsaved file.")
@@ -531,8 +596,11 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
 
         if props.render_marker_infos:
             self.render_pre_handler(context)
-            bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath,
-                                  container='WAV', codec="PCM")
+            if prefs.is_render_video:
+                bpy.ops.render.render('INVOKE_DEFAULT', animation=True)
+            else:
+                bpy.ops.sound.mixdown('INVOKE_DEFAULT', filepath=self.render_filepath_aud,
+                                      container='WAV', codec="PCM")
 
             return {'RUNNING_MODAL'}
 
