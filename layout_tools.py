@@ -420,7 +420,7 @@ class ExtractShotfiles_Base():
         ffmpeg = render.ffmpeg
         props = scene.oha_layout_tools
     
-        self.scene_frame_start =  scene.frame_start
+        self.scene_frame_start = scene.frame_start
         self.scene_frame_end = scene.frame_end
         self.scene_use_audio = scene.use_audio
 
@@ -459,7 +459,7 @@ class ExtractShotfiles_Base():
         ffmpeg = render.ffmpeg
         props = scene.oha_layout_tools
     
-        scene.frame_current = scene.frame_start =  mi['start']
+        scene.frame_start =  mi['start']
         scene.frame_end = mi['end']
         scene.use_audio = False # Audio mustn't be muted upon mixdown.
     
