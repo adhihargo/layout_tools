@@ -332,29 +332,28 @@ class ExtractShotfiles_Base():
 
             seq = None
             seq2 = None
-            path = None
+            path = os.path.join(self.render_basepath, 'sounds',
+                                mi['name']+'.mov') if prefs.is_render_video else\
+                os.path.join(self.render_basepath, 'sounds',
+                             mi['name']+'.wav')
+            if not os.path.exists(path):
+                continue
 
             if prefs.is_render_video: # Add video strip
-                path = os.path.join(self.render_basepath, 'sounds',
-                                    mi['name']+'.mov')
-                if os.path.exists(path):
-                    duration = mi['end'] - (mi['start']+1)
-                    scene.frame_end = scene.frame_start + duration
+                duration = mi['end'] - (mi['start']+1)
+                scene.frame_end = scene.frame_start + duration
 
-                    seq = sequences.new_sound(mi['name'], path,
-                                              1, scene.frame_start)
-                    seq2 = sequences.new_movie(mi['name'], path,
-                                               2, scene.frame_start)
+                seq = sequences.new_sound(mi['name'], path,
+                                          1, scene.frame_start)
+                seq2 = sequences.new_movie(mi['name'], path,
+                                           2, scene.frame_start)
             else: # Add sound strip
-                path = os.path.join(self.render_basepath, 'sounds',
-                                    mi['name']+'.wav')
-                if os.path.exists(path):
-                    duration = mi['end'] - (mi['start']+1)
-                    scene.frame_end = scene.frame_start + duration
+                duration = mi['end'] - (mi['start']+1)
+                scene.frame_end = scene.frame_start + duration
 
-                    seq = sequences.new_sound(mi['name'], path,
-                                              1, scene.frame_start)
-    
+                seq = sequences.new_sound(mi['name'], path,
+                                          1, scene.frame_start)
+
             layoutdir = os.path.join(self.render_basepath, 'layouts')
             markerpath = bpy.path.ensure_ext(
                 filepath=os.path.join(layoutdir, mi['name']), ext=".blend")
