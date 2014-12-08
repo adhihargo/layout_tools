@@ -667,9 +667,8 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
         new_scene = bpy.data.scenes[scene_name]
 
         if self.is_import_scs:
-            for attr in ["frame_step", "frame_start", "frame_end", "layers", "sync_mode",
-                         "use_audio", "use_audio_scrub", "use_audio_sync", "use_frame_drop",
-                         "use_nodes"]:
+            for attr in ["frame_step", "layers", "sync_mode", "use_audio", "use_audio_scrub",
+                         "use_audio_sync", "use_frame_drop", "use_nodes"]:
                 if not getattr(cur_scene, attr, None):
                     continue
                 setattr(cur_scene, attr, getattr(new_scene, attr))
