@@ -480,7 +480,7 @@ class ExtractShotfiles_Base():
         props = scene.oha_layout_tools
         prefs = context.user_preferences.addons[__name__].preferences
 
-        self.render_selected = event.shift == True
+        self.render_selected = (event.shift == True)
 
         if not context.blend_data.is_saved:
             self.report({"ERROR"}, "Could not extract from unsaved file.")
