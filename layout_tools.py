@@ -733,6 +733,9 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
                         getattr(new_scene.render.image_settings, attr))
 
         for obj in new_scene.objects:
+            if not self.is_import_cam and getattr(obj, "type", None) == "CAMERA":
+                continue
+
             obj.select = False
             cur_scene.objects.link(obj)
         cur_scene.update()
