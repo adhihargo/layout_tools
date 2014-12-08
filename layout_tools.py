@@ -620,41 +620,134 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
             options={'HIDDEN'},
             )
 
-    def execute(self, context):
+    is_import_scs = bpy.props.BoolProperty(
+        name="Scene Settings",
+        default=True,
+        )
+    is_import_res = bpy.props.BoolProperty(
+        name="Render Settings",
+        default=True,
+        )
+    is_import_cam = bpy.props.BoolProperty(
+        name="Camera",
+        default=True,
+        )
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.label("Extra Settings to Copy:")
+        col = layout.column_flow(columns=2, align=True)
+        col.prop(self, "is_import_scs", toggle=True)
+        col.prop(self, "is_import_res", toggle=True)
+
+        layout.label("Extra Object Type to Copy:")
+        col = layout.column_flow(columns=2, align=True)
+        col.prop(self, "is_import_cam", toggle=True)
+
+    def import_assets(self, context, scene_name):
         cur_scene = context.scene
+        old_scene = bpy.data.scenes.get(scene_name, None)
+        if old_scene:
+            old_scene.name = scene_name + ".orig"
+
+        od = dict(filepath=self.filepath, obj=scene_name, sep=os.sep)
+        scene_dirpath = "%(filepath)s%(sep)sScene%(sep)s" % od
+        scene_filepath = scene_dirpath + scene_name
+
+        bpy.ops.wm.append(
+            directory=scene_dirpath,
+            filepath=scene_filepath,
+            filename=scene_name,
+            filemode=1,
+            link=False,
+            autoselect=False,
+            active_layer=False,
+            instance_groups=False)
+        new_scene = bpy.data.scenes[scene_name]
+
+        if self.is_import_scs:
+            for attr in ["frame_step", "layers", "sync_mode",
+                         "use_audio", "use_audio_scrub",
+                         "use_audio_sync", "use_frame_drop",
+                         "use_nodes"]:
+                setattr(cur_scene, attr, getattr(new_scene, attr))
+
+        if self.is_import_res:
+            for attr in ['alpha_mode', 'antialiasing_samples', 'bake_aa_mode', 'bake_bias',
+                         'bake_distance', 'bake_margin', 'bake_normal_space',
+                         'bake_quad_split', 'bake_samples', 'bake_type', 'bake_user_scale',
+                         'border_max_x', 'border_max_y', 'border_min_x', 'border_min_y',
+                         'display_mode', 'dither_intensity', 'edge_color', 'edge_threshold',
+                         'engine', 'field_order', 'filepath', 'filter_size',
+                         'fps', 'fps_base', 'frame_map_new', 'frame_map_old',
+                         'line_thickness', 'line_thickness_mode', 'motion_blur_samples',
+                         'motion_blur_shutter', 'octree_resolution',
+                         'pixel_aspect_x', 'pixel_aspect_y', 'pixel_filter_type',
+                         'preview_start_resolution', 'raytrace_method',
+                         'resolution_percentage', 'resolution_x', 'resolution_y',
+                         'sequencer_gl_preview', 'sequencer_gl_render',
+                         'threads', 'threads_mode', 'tile_x', 'tile_y',
+                         'use_antialiasing', 'use_border', 'use_compositing',
+                         'use_crop_to_border', 'use_edge_enhance', 'use_envmaps',
+                         'use_fields', 'use_fields_still', 'use_file_extension',
+                         'use_free_image_textures', 'use_free_unused_nodes', 'use_freestyle',
+                         'use_full_sample', 'use_instances', 'use_local_coords',
+                         'use_lock_interface', 'use_motion_blur', 'use_overwrite',
+                         'use_persistent_data', 'use_placeholder', 'use_raytrace',
+                         'use_render_cache', 'use_save_buffers', 'use_sequencer',
+                         'use_sequencer_gl_preview', 'use_sequencer_gl_textured_solid',
+                         'use_shadows', 'use_simplify', 'use_simplify_triangulate',
+                         'use_single_layer', 'use_sss', 'use_textures']:
+                if not getattr(cur_scene.render, attr, None):
+                    continue
+                setattr(cur_scene.render, attr, getattr(new_scene.render, attr))
+            for attr in ['aa_samples', 'ao_samples', 'bake_type', 'blur_glossy',
+                         'caustics_reflective', 'caustics_refractive', 'device',
+                         'diffuse_bounces', 'diffuse_samples', 'feature_set',
+                         'film_exposure', 'film_transparent', 'filter_type', 'filter_width',
+                         'glossy_bounces', 'glossy_samples', 'max_bounces',
+                         'mesh_light_samples', 'min_bounces', 'name', 'preview_aa_samples',
+                         'preview_active_layer', 'preview_pause', 'preview_samples',
+                         'preview_start_resolution', 'progressive',
+                         'sample_all_lights_direct', 'sample_all_lights_indirect',
+                         'sample_clamp_direct', 'sample_clamp_indirect', 'samples',
+                         'sampling_pattern', 'seed', 'shading_system', 'subsurface_samples',
+                         'tile_order', 'transmission_bounces', 'transmission_samples',
+                         'transparent_max_bounces', 'transparent_min_bounces', 'use_cache',
+                         'use_layer_samples', 'use_progressive_refine', 'use_samples_final',
+                         'use_square_samples', 'use_transparent_shadows', 'volume_bounces',
+                         'volume_max_steps', 'volume_samples', 'volume_step_size']:
+                if not getattr(cur_scene.cycles, attr, None):
+                    continue
+                setattr(cur_scene.cycles, attr, getattr(new_scene.cycles, attr))
+            for attr in ['cineon_black', 'cineon_gamma', 'cineon_white', 'color_depth',
+                         'color_mode', 'compression', 'exr_codec', 'file_format',
+                         'jpeg2k_codec', 'quality', 'use_cineon_log',
+                         'use_jpeg2k_cinema_48', 'use_jpeg2k_cinema_preset',
+                         'use_jpeg2k_ycc', 'use_preview', 'use_zbuffer']:
+                if not getattr(cur_scene.render.image_settings, attr, None):
+                    continue
+                setattr(cur_scene.render.image_settings, attr,
+                        getattr(new_scene.render.image_settings, attr))
+
+        for obj in new_scene.objects:
+            obj.select = False
+            cur_scene.objects.link(obj)
+        cur_scene.update()
+
+        if old_scene:
+            new_scene.name = scene_name + ".001"
+            old_scene.name = scene_name
+        bpy.data.scenes.remove(new_scene)
+
+    def execute(self, context):
         scene_list = []
         with bpy.data.libraries.load(self.filepath) as (data_from, data_to):
             scene_list.extend(data_from.scenes)
 
         for scene_name in scene_list:
-            old_scene = bpy.data.scenes.get(scene_name, None)
-            if old_scene:
-                old_scene.name = scene_name + ".orig"
-
-            od = dict(filepath=self.filepath, obj=scene_name, sep=os.sep)
-            scene_dirpath = "%(filepath)s%(sep)sScene%(sep)s" % od
-            scene_filepath = scene_dirpath + scene_name
-
-            bpy.ops.wm.append(
-                directory=scene_dirpath,
-                filepath=scene_filepath,
-                filename=scene_name,
-                filemode=1,
-                link=False,
-                autoselect=False,
-                active_layer=False,
-                instance_groups=False)
-            new_scene = bpy.data.scenes[scene_name]
-
-            for obj in new_scene.objects:
-                obj.select = False
-                cur_scene.objects.link(obj)
-            cur_scene.update()
-
-            if old_scene:
-                new_scene.name = scene_name + ".001"
-                old_scene.name = scene_name
-            bpy.data.scenes.remove(new_scene)
+            self.import_assets(context, scene_name)
 
         return {'FINISHED'}
 
