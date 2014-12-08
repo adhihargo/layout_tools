@@ -667,10 +667,11 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
         new_scene = bpy.data.scenes[scene_name]
 
         if self.is_import_scs:
-            for attr in ["frame_step", "layers", "sync_mode",
-                         "use_audio", "use_audio_scrub",
-                         "use_audio_sync", "use_frame_drop",
+            for attr in ["frame_step", "frame_start", "frame_end", "layers", "sync_mode",
+                         "use_audio", "use_audio_scrub", "use_audio_sync", "use_frame_drop",
                          "use_nodes"]:
+                if not getattr(cur_scene, attr, None):
+                    continue
                 setattr(cur_scene, attr, getattr(new_scene, attr))
 
         if self.is_import_res:
@@ -707,7 +708,7 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
                          'diffuse_bounces', 'diffuse_samples', 'feature_set',
                          'film_exposure', 'film_transparent', 'filter_type', 'filter_width',
                          'glossy_bounces', 'glossy_samples', 'max_bounces',
-                         'mesh_light_samples', 'min_bounces', 'name', 'preview_aa_samples',
+                         'mesh_light_samples', 'min_bounces', 'preview_aa_samples',
                          'preview_active_layer', 'preview_pause', 'preview_samples',
                          'preview_start_resolution', 'progressive',
                          'sample_all_lights_direct', 'sample_all_lights_indirect',
