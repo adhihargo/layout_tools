@@ -766,7 +766,7 @@ class SCENE_OT_rename_markers(bpy.types.Operator):
         blendname = os.path.splitext(blendfile)[0]
         
         for i, marker in enumerate(sorted(context.scene.timeline_markers, key=lambda m: m.frame), 1):
-            marker.name = blendname+'_'+str(i)
+            marker.name = blendname+'_'+str(i).zfill(3)
         return {'FINISHED'}
 
 
