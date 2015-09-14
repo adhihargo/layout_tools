@@ -36,8 +36,8 @@ bl_info = {
     "location": "Sequencer > Tools > OHA Layout Tools",
     "description": "Create layout files.",
     "warning": "",
-    "wiki_url": "https://github.com/adhihargo/layout_tools",
-    "tracker_url": "https://github.com/adhihargo/layout_tools/issues",
+    "wiki_url": "https://github.com/johantri/layout_tools",
+    "tracker_url": "https://github.com/johantri/layout_tools/issues",
     "category": "Sequencer"}
 
 
