@@ -26,13 +26,13 @@ import zipfile
 import xml.dom
 from bpy_extras.io_utils import ImportHelper
 from bpy.app.handlers import persistent
-from bpy.types import Operator
+from bpy.types import Panel, Operator
 
 bl_info = {
     "name": "OHA Layout Tools",
-    "author": "Adhi Hargo",
-    "version": (1, 0, 2),
-    "blender": (2, 71, 0),
+    "author": "Adhi Hargo, Johan Tri Handoyo",
+    "version": (1, 0, 3),
+    "blender": (2, 75, 0),
     "location": "Sequencer > Tools > OHA Layout Tools",
     "description": "Create layout files.",
     "warning": "",
@@ -40,7 +40,7 @@ bl_info = {
     "tracker_url": "https://github.com/adhihargo/layout_tools/issues",
     "category": "Sequencer"}
 
-
+
 # ========== constants for Open Document Spreadsheet creation ==========
 CONTENT_FN = "content.xml"
 CONTENT_DOCATTRS = set([
@@ -124,7 +124,7 @@ class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
         row = layout.row()
         row.prop(self, "is_render_video")
 
-
+
 # ============================== operators =============================
 
 class ExtractShotfiles_Base():
@@ -524,7 +524,7 @@ class ExtractShotfiles_Base():
 
 
 class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
-    '''Automatically create layout files using marker boundaries.'''
+    '''Automatically create layout files using marker boundaries. Press SHIFT+click to only extract selected marker/s'''
     bl_idname = 'sequencer.oha_extract_shot_files'
     bl_label = 'Create Layout'
     bl_options = {'REGISTER'}
@@ -606,7 +606,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         return {'FINISHED'}
 
 
-
+
 class SCENE_OT_ImportAssets(Operator, ImportHelper):
     """Import all assets from other .blend file"""
     bl_idname = "scene.oha_import"
@@ -754,7 +754,55 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
 
         return {'FINISHED'}
 
-
+# Auto marker renamer with additional Blender file name on it
+class SCENE_OT_rename_markers(bpy.types.Operator):
+    """Automatically name the marker, ascending in number"""
+    bl_idname = "scene.rename_markers"
+    bl_label = "Rename Markers"
+           
+    def execute(self, context):
+        self.blendpath = bpy.path.abspath(context.blend_data.filepath)
+        blenddir, blendfile = os.path.split(self.blendpath)
+        blendname = os.path.splitext(blendfile)[0]
+        
+        for i, marker in enumerate(sorted(context.scene.timeline_markers, key=lambda m: m.frame), 1):
+            marker.name = blendname+'_'+str(i)
+        return {'FINISHED'}
+
+
+def draw_func(self, context):
+    layout = self.layout
+    if context.space_data.view_type == 'SEQUENCER':
+        layout.operator(SCENE_OT_rename_markers.bl_idname, icon = 'LINENUMBERS_ON')
+
+# Create proxy from any selected linked objects
+class VIEW3D_PT_proxy_make_all(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_category = "Relations"
+    bl_context = "objectmode"
+    bl_label = "OHA Make Proxies"
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("object.proxy_make_all", icon = "LINK_BLEND")
+
+
+class OBJECT_OT_proxy_make_all(Operator):
+    """Make proxies from all selected objects"""
+    bl_idname = "object.proxy_make_all"
+    bl_label = "Make Proxies"
+
+
+    def execute(self, context):
+        scene = context.scene
+        for obj in context.selected_objects:
+            scene.objects.active = obj # make it the context object
+            bpy.ops.object.proxy_make()
+        return {'FINISHED'}
+
+        
+        
 # ========================= auxiliary functions ========================
 
 def adjust_duration_to_effects(context):
@@ -777,7 +825,7 @@ def adjust_duration_to_effects(context):
         if overlap_end:
             mi['end'] = overlap_end[0].frame_final_end
 
-
+
 # =========================== addon interface ==========================
 
 def sequencer_headerbutton(self, context):
@@ -797,6 +845,8 @@ def register():
     bpy.types.Scene.oha_layout_tools = bpy.props.PointerProperty(
         type = OHA_LayoutToolsProps)
     bpy.types.SEQUENCER_HT_header.append(sequencer_headerbutton)
+    
+    bpy.types.SEQUENCER_HT_header.append(draw_func)
 
 def unregister():
     bpy.utils.unregister_module(__name__)
@@ -804,4 +854,9 @@ def unregister():
 
     del bpy.types.Scene.oha_layout_tools
     bpy.types.SEQUENCER_HT_header.remove(sequencer_headerbutton)
+    
+    bpy.types.SEQUENCER_HT_header.remove(draw_func)
+    
+if __name__ == "__main__":
+    register()
     
