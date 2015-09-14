@@ -7,6 +7,12 @@ Sound (or video, see Preferences) from the animatics will be rendered separately
 
 Pressing SHIFT while clicking "Extract" button will render only the shot prefixed with each selected marker.
 
+File > Import > Import Assets. Will import every assets from assigned .blend file, except for frame range.
+
+Additional "Rename Marker" is self explanatory.
+
+Create proxy from all selected linked objects. Located at tool shelf > relations. Usefull when you have to link many background assets and need to edit the Draw Type of the objects individually, for speedy viewport playback purposes. Previously, it was impossible to proxified more than one objects at the same time using Make Proxy (ctrl-alt-P) option.
+
 
 Preferences
 -----------
