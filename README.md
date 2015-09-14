@@ -1,3 +1,5 @@
+![alt tag](http://oha-studios.com/wp-content/uploads/2012/11/logo-OHA-alpha-web-2-1024x461.png)
+
 OHA Layout Tools
 ================
 
