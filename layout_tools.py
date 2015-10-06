@@ -101,7 +101,8 @@ class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
         name="Base Layout Path",
         description="""Base path for all extracted sound and .blend files.
 %(blendname): Name of current .blend file.""",
-        default="../%(blendname)")
+        default="../%(blendname)",
+        subtype='DIR_PATH')
 
     is_render_video = bpy.props.BoolProperty(
         name="Render Video",
