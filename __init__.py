@@ -780,8 +780,8 @@ def draw_func(self, context):
 # Create proxy from any selected linked objects
 class VIEW3D_PT_proxy_make_all(Panel):
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_category = "Relations"
+    bl_region_type = 'UI'
+    bl_category = "OHA"
     bl_context = "objectmode"
     bl_label = "OHA Make Proxies"
 
