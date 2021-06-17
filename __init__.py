@@ -31,8 +31,8 @@ from bpy_extras.io_utils import ImportHelper
 bl_info = {
     "name": "OHA Layout Tools",
     "author": "Adhi Hargo, Johan Tri Handoyo",
-    "version": (1, 0, 3),
-    "blender": (2, 75, 0),
+    "version": (1, 0, 4),
+    "blender": (2, 92, 0),
     "location": "Sequencer > Tools > OHA Layout Tools",
     "description": "Create layout files.",
     "warning": "",
