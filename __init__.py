@@ -832,7 +832,7 @@ def sequencer_headerbutton(self, context):
     layout = self.layout
 
     row = layout.row(align=True)
-    row.operator('sequencer.oha_extract_shot_files', icon='ALIGN',
+    row.operator('sequencer.oha_extract_shot_files', icon='DOCUMENTS',
                  text='Extract')
 
 
