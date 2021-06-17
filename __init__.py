@@ -840,8 +840,13 @@ def menu_func_import(self, context):
     self.layout.operator("scene.oha_import")
 
 
+classes = [OHA_LayoutToolsProps, OHA_LayoutToolsPreferences, SEQUENCER_OT_ExtractShotfiles,
+           SCENE_OT_rename_markers, SCENE_OT_ImportAssets, VIEW3D_PT_proxy_make_all, OBJECT_OT_proxy_make_all]
+register_classes, unregister_classes = bpy.utils.register_classes_factory(classes)
+
+
 def register():
-    bpy.utils.register_module(__name__)
+    register_classes()
     bpy.types.INFO_MT_file_import.append(menu_func_import)
 
     bpy.types.Scene.oha_layout_tools = bpy.props.PointerProperty(
@@ -852,7 +857,7 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_module(__name__)
+    unregister_classes()
     bpy.types.INFO_MT_file_import.remove(menu_func_import)
 
     del bpy.types.Scene.oha_layout_tools
