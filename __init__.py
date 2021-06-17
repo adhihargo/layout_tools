@@ -114,12 +114,12 @@ class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
 
         cols = layout.column_flow(columns=2, align=True)
 
-        cols.label("Export Format:")
+        cols.label(text="Export Format:")
         row = cols.row(align=True)
         row.prop(self, "is_export_ods", text="ODS", toggle=True)
         row.prop(self, "is_export_csv", text="CSV", toggle=True)
 
-        cols.label("Layout Path:")
+        cols.label(text="Layout Path:")
         cols.prop(self, "layout_path", text="")
 
         row = layout.row()
@@ -636,12 +636,12 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
     def draw(self, context):
         layout = self.layout
 
-        layout.label("Extra Settings to Copy:")
+        layout.label(text="Extra Settings to Copy:")
         col = layout.column_flow(columns=2, align=True)
         col.prop(self, "is_import_scs", toggle=True)
         col.prop(self, "is_import_res", toggle=True)
 
-        layout.label("Extra Object Type to Copy:")
+        layout.label(text="Extra Object Type to Copy:")
         col = layout.column_flow(columns=2, align=True)
         col.prop(self, "is_import_cam", toggle=True)
 
