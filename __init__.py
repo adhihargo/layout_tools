@@ -88,23 +88,23 @@ class OHA_LayoutToolsProps(bpy.types.PropertyGroup):
 class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
-    is_export_ods = bpy.props.BoolProperty(
+    is_export_ods: bpy.props.BoolProperty(
         name="Shot List to Spreadsheet",
         description="Write shot list to Open Document spreadsheet (.ods)",
         default=True)
 
-    is_export_csv = bpy.props.BoolProperty(
+    is_export_csv: bpy.props.BoolProperty(
         name="Shot List to CSV Textfile",
         description="Write shot list to Excel comma-separated values.",
         default=False)
 
-    layout_path = bpy.props.StringProperty(
+    layout_path: bpy.props.StringProperty(
         name="Base Layout Path",
         description="""Base path for all extracted sound and .blend files.
 %(blendname): Name of current .blend file.""",
         default="../%(blendname)")
 
-    is_render_video = bpy.props.BoolProperty(
+    is_render_video: bpy.props.BoolProperty(
         name="Render Video",
         description="Render video instead of audio file.",
         default=False)
@@ -615,20 +615,20 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
     # ImportHelper mixin class uses this
     filename_ext = ".blend"
 
-    filter_glob = bpy.props.StringProperty(
+    filter_glob: bpy.props.StringProperty(
         default="*.blend",
         options={'HIDDEN'},
     )
 
-    is_import_scs = bpy.props.BoolProperty(
+    is_import_scs: bpy.props.BoolProperty(
         name="Scene Settings",
         default=True,
     )
-    is_import_res = bpy.props.BoolProperty(
+    is_import_res: bpy.props.BoolProperty(
         name="Render Settings",
         default=True,
     )
-    is_import_cam = bpy.props.BoolProperty(
+    is_import_cam: bpy.props.BoolProperty(
         name="Camera",
         default=True,
     )
