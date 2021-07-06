@@ -847,23 +847,36 @@ register_classes, unregister_classes = bpy.utils.register_classes_factory(classe
 
 def register():
     register_classes()
-    bpy.types.INFO_MT_file_import.append(menu_func_import)
+    register_menu()
 
-    bpy.types.Scene.oha_layout_tools = bpy.props.PointerProperty(
-        type=OHA_LayoutToolsProps)
+    bpy.types.Scene.oha_layout_tools = bpy.props.PointerProperty(type=OHA_LayoutToolsProps)
     bpy.types.SEQUENCER_HT_header.append(sequencer_headerbutton)
 
     bpy.types.SEQUENCER_HT_header.append(draw_func)
 
 
+def register_menu():
+    if bpy.app.version < (2, 80):
+        bpy.types.INFO_MT_file_import.append(menu_func_import)
+    else:
+        bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+
+
 def unregister():
     unregister_classes()
-    bpy.types.INFO_MT_file_import.remove(menu_func_import)
+    unregister_menu()
 
     del bpy.types.Scene.oha_layout_tools
     bpy.types.SEQUENCER_HT_header.remove(sequencer_headerbutton)
 
     bpy.types.SEQUENCER_HT_header.remove(draw_func)
+
+
+def unregister_menu():
+    if bpy.app.version < (2, 80):
+        bpy.types.INFO_MT_file_import.remove(menu_func_import)
+    else:
+        bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
 
 if __name__ == "__main__":
