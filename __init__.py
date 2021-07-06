@@ -32,7 +32,6 @@ if "bpy" in locals():
         importlib.reload(constants)
 
 import bpy
-from bpy.types import Operator, Panel
 from bpy_extras.io_utils import ImportHelper
 
 bl_info = {
@@ -492,7 +491,7 @@ class ExtractShotfiles_Base():
         return self.execute(context)
 
 
-class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
+class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
     '''Automatically create layout files using marker boundaries. Press SHIFT+click to only extract selected marker/s'''
     bl_idname = 'sequencer.oha_extract_shot_files'
     bl_label = 'Create Layout'
@@ -575,7 +574,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, Operator):
         return {'FINISHED'}
 
 
-class SCENE_OT_ImportAssets(Operator, ImportHelper):
+class SCENE_OT_ImportAssets(bpy.types.Operator, ImportHelper):
     """Import all assets from other .blend file"""
     bl_idname = "scene.oha_import"
     bl_label = "Import Assets"
@@ -724,7 +723,7 @@ class SCENE_OT_ImportAssets(Operator, ImportHelper):
 
 
 # Auto marker renamer with additional Blender file name on it
-class SCENE_OT_rename_markers(bpy.types.Operator):
+class SCENE_OT_RenameMarkers(bpy.types.Operator):
     """Automatically name the marker, ascending in number"""
     bl_idname = "scene.rename_markers"
     bl_label = "Rename Markers"
@@ -742,11 +741,11 @@ class SCENE_OT_rename_markers(bpy.types.Operator):
 def draw_func(self, context):
     layout = self.layout
     if context.space_data.view_type == 'SEQUENCER':
-        layout.operator(SCENE_OT_rename_markers.bl_idname, icon='LINENUMBERS_ON')
+        layout.operator(SCENE_OT_RenameMarkers.bl_idname, icon='LINENUMBERS_ON')
 
 
 # Create proxy from any selected linked objects
-class VIEW3D_PT_proxy_make_all(Panel):
+class VIEW3D_PT_ProxyMakeAll(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "OHA"
@@ -755,10 +754,10 @@ class VIEW3D_PT_proxy_make_all(Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("object.proxy_make_all", icon="LINK_BLEND")
+        layout.operator(OBJECT_OT_ProxyMakeAll.bl_idname, icon="LINK_BLEND")
 
 
-class OBJECT_OT_proxy_make_all(Operator):
+class OBJECT_OT_ProxyMakeAll(bpy.types.Operator):
     """Make proxies from all selected objects"""
     bl_idname = "object.proxy_make_all"
     bl_label = "Make Proxies"
@@ -800,16 +799,15 @@ def sequencer_headerbutton(self, context):
     layout = self.layout
 
     row = layout.row(align=True)
-    row.operator('sequencer.oha_extract_shot_files', icon='DOCUMENTS',
-                 text='Extract')
+    row.operator(SEQUENCER_OT_ExtractShotfiles.bl_idname, icon='DOCUMENTS', text='Extract')
 
 
 def menu_func_import(self, context):
-    self.layout.operator("scene.oha_import")
+    self.layout.operator(SCENE_OT_ImportAssets.bl_idname)
 
 
 classes = [OHA_LayoutToolsProps, OHA_LayoutToolsPreferences, SEQUENCER_OT_ExtractShotfiles,
-           SCENE_OT_rename_markers, SCENE_OT_ImportAssets, VIEW3D_PT_proxy_make_all, OBJECT_OT_proxy_make_all]
+           SCENE_OT_RenameMarkers, SCENE_OT_ImportAssets, VIEW3D_PT_ProxyMakeAll, OBJECT_OT_ProxyMakeAll]
 register_classes, unregister_classes = bpy.utils.register_classes_factory(classes)
 
 
