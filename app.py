@@ -50,7 +50,6 @@ class ExtractShotfiles_Base():
     render_filepath = None
     render_filepath_vid = None
     render_filepath_aud = None
-    render_display_mode = None
 
     image_file_format = None
 
@@ -224,7 +223,7 @@ class ExtractShotfiles_Base():
     def write_shot_files(self, context):
         scene = context.scene
         props = scene.oha_layout_tools
-        prefs = context.user_preferences.addons[__name__].preferences
+        prefs = context.preferences.addons[__package__].preferences
         sequences = scene.sequence_editor.sequences
         scene.timeline_markers.clear()
 
@@ -328,7 +327,6 @@ class ExtractShotfiles_Base():
         self.scene_use_audio = scene.use_audio
 
         self.render_filepath = render.filepath
-        self.render_display_mode = render.display_mode
 
         self.image_file_format = image.file_format
 
@@ -347,7 +345,6 @@ class ExtractShotfiles_Base():
         scene.use_audio = self.scene_use_audio
 
         render.filepath = self.render_filepath
-        render.display_mode = self.render_display_mode
 
         image.file_format = self.image_file_format
         ffmpeg.format = self.ffmpeg_format
@@ -369,9 +366,8 @@ class ExtractShotfiles_Base():
         self.render_filepath_aud = os.path.join(self.render_basepath, 'sounds',
                                                 mi['name'] + '.wav')
         render.filepath = self.render_filepath_vid
-        render.display_mode = 'NONE'
 
-        image.file_format = "H264"
+        image.file_format = "FFMPEG"
 
         ffmpeg.format = 'QUICKTIME'
         ffmpeg.audio_codec = 'MP3'
@@ -380,9 +376,9 @@ class ExtractShotfiles_Base():
     def invoke(self, context, event):
         scene = context.scene
         props = scene.oha_layout_tools
-        prefs = context.user_preferences.addons[__name__].preferences
+        prefs = context.preferences.addons[__package__].preferences
 
-        self.render_selected = (event.shift == True)
+        self.render_selected = (event.shift is True)
 
         if not context.blend_data.is_saved:
             self.report({"ERROR"}, "Could not extract from unsaved file.")
@@ -437,7 +433,7 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
         wm = context.window_manager
         scene = context.scene
         props = scene.oha_layout_tools
-        prefs = context.user_preferences.addons[__name__].preferences
+        prefs = context.preferences.addons[__package__].preferences
         context.area.tag_redraw()
 
         file_stat = self.render_filepath_vid if prefs.is_render_video \
@@ -486,14 +482,14 @@ class SEQUENCER_OT_ExtractShotfiles(ExtractShotfiles_Base, bpy.types.Operator):
         wm = context.window_manager
         scene = context.scene
         props = scene.oha_layout_tools
-        prefs = context.user_preferences.addons[__name__].preferences
+        prefs = context.preferences.addons[__package__].preferences
 
         if not self.blendpath:
             self.report({"ERROR"}, "Could not extract from unsaved file.")
             return {"CANCELLED"}
 
         wm.modal_handler_add(self)
-        self._timer = wm.event_timer_add(2.0, context.window)
+        self._timer = wm.event_timer_add(time_step=2.0, window=context.window)
 
         if props.render_marker_infos:
             self.render_pre_handler(context)
@@ -562,9 +558,7 @@ class SCENE_OT_ImportAssets(bpy.types.Operator, ImportHelper):
             filename=scene_name,
             filemode=1,
             link=False,
-            autoselect=False,
-            active_layer=False,
-            instance_groups=False)
+            autoselect=False,)
         new_scene = bpy.data.scenes[scene_name]
 
         if self.is_import_scs:
@@ -602,6 +596,7 @@ class SCENE_OT_ImportAssets(bpy.types.Operator, ImportHelper):
                          'use_single_layer', 'use_sss', 'use_textures']:
                 if not getattr(cur_scene.render, attr, None):
                     continue
+                print("ATTR: %s", attr)
                 setattr(cur_scene.render, attr, getattr(new_scene.render, attr))
             for attr in ['aa_samples', 'ao_samples', 'bake_type', 'blur_glossy',
                          'caustics_reflective', 'caustics_refractive', 'device',
@@ -678,10 +673,9 @@ class OBJECT_OT_ProxyMakeAll(bpy.types.Operator):
     bl_label = "Make Proxies"
 
     def execute(self, context):
-        scene = context.scene
         for obj in context.selected_objects:
-            scene.objects.active = obj  # make it the context object
-            bpy.ops.object.proxy_make()
+            context.view_layer.objects.active = obj  # make it the context object
+            bpy.ops.object.proxy_make(object="DEFAULT")
         return {'FINISHED'}
 
 

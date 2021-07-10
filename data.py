@@ -31,7 +31,7 @@ class OHA_LayoutToolsProperties(bpy.types.PropertyGroup):
 
 
 class OHA_LayoutToolsPreferences(bpy.types.AddonPreferences):
-    bl_idname = "oha.layout_tools_preferences"
+    bl_idname = __package__
 
     is_export_ods: bpy.props.BoolProperty(
         name="Shot List to Spreadsheet",
