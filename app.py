@@ -313,7 +313,7 @@ class ExtractShotfiles_Base():
         if not props.render_marker_infos:
             self.write_shot_files(context)
             props.marker_infos.clear()
-            context.area.header_text_set()
+            context.area.header_text_set(None)
             bpy.ops.wm.open_mainfile(filepath=self.blendpath)
 
     def save_scene_settings(self, context):
